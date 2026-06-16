@@ -5,15 +5,60 @@ export function useLeaveTypes(companyId) {
   return useQuery({
     queryKey: ['leave-types', companyId ?? null],
     queryFn: async () => {
-      // Returns global rows (company_id IS NULL) plus company-specific rows
       const { data, error } = await supabase
         .from('leave_types')
         .select('*')
         .eq('is_active', true)
         .order('sort_order');
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
+  });
+}
+
+// Pending-only fetch: 3 separate simple queries merged in JS.
+// Avoids PostgREST join resolution issues that silently return empty results.
+export function usePendingLeaveRequests(companyId) {
+  return useQuery({
+    queryKey: ['pending-leave-requests', companyId],
+    refetchOnMount: 'always',
+    queryFn: async () => {
+      if (!companyId) return [];
+
+      // 1. Fetch pending requests (no joins)
+      const { data: requests, error: reqErr } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('status', 'Pending')
+        .order('created_at', { ascending: false });
+      if (reqErr) throw reqErr;
+      if (!requests?.length) return [];
+
+      // 2. Fetch related employees
+      const empIds = [...new Set(requests.map(r => r.employee_id).filter(Boolean))];
+      const { data: employees } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name, employee_id')
+        .in('id', empIds);
+
+      // 3. Fetch related leave types
+      const ltIds = [...new Set(requests.map(r => r.leave_type_id).filter(Boolean))];
+      const { data: leaveTypes } = await supabase
+        .from('leave_types')
+        .select('id, name, code, color, is_paid, approval_level')
+        .in('id', ltIds);
+
+      const empMap = Object.fromEntries((employees ?? []).map(e => [e.id, e]));
+      const ltMap  = Object.fromEntries((leaveTypes  ?? []).map(t => [t.id, t]));
+
+      return requests.map(r => ({
+        ...r,
+        employees:   empMap[r.employee_id]   ?? null,
+        leave_types: ltMap[r.leave_type_id]  ?? null,
+      }));
+    },
+    enabled: !!companyId,
   });
 }
 
@@ -64,6 +109,7 @@ export function useCreateLeaveRequest(companyId) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave-requests'] });
+      qc.invalidateQueries({ queryKey: ['pending-leave-requests'] });
       qc.invalidateQueries({ queryKey: ['leave-balances'] });
     },
   });
@@ -79,6 +125,7 @@ export function useUpdateLeaveRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leave-requests'] });
+      qc.invalidateQueries({ queryKey: ['pending-leave-requests'] });
       qc.invalidateQueries({ queryKey: ['leave-balances'] });
     },
   });

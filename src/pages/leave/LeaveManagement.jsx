@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { Plus, CheckCircle, XCircle, Upload, FileSpreadsheet, Clock, User, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Upload, FileSpreadsheet, Clock, User, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLeaveRequests, useLeaveTypes, useUpdateLeaveRequest, useCreateLeaveRequest, useLeaveBalances, useInitLeaveBalances } from '../../hooks/useLeave';
+import { usePendingLeaveRequests, useLeaveRequests, useLeaveTypes, useUpdateLeaveRequest, useCreateLeaveRequest, useLeaveBalances, useInitLeaveBalances } from '../../hooks/useLeave';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { Table } from '../../components/ui/Table';
@@ -24,10 +24,7 @@ export default function LeaveManagement() {
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const { data: pendingRequests = [], isLoading: pendingLoading } = useLeaveRequests(
-    { status: 'Pending' },
-    companyId
-  );
+  const { data: pendingRequests = [], isLoading: pendingLoading, error: pendingError } = usePendingLeaveRequests(companyId);
   const { data: allRequests = [], isLoading: allLoading } = useLeaveRequests(
     { status: statusFilter || undefined, year: yearFilter ? parseInt(yearFilter) : undefined },
     companyId
@@ -100,6 +97,7 @@ export default function LeaveManagement() {
         <PendingApprovalsTab
           requests={pendingRequests}
           loading={pendingLoading}
+          error={pendingError}
           canApprove={canApprove}
           onApprove={handleApprove}
           onReject={(id) => setRejectingId(id)}
@@ -135,11 +133,23 @@ export default function LeaveManagement() {
   );
 }
 
-function PendingApprovalsTab({ requests, loading, canApprove, onApprove, onReject, userRole }) {
+function PendingApprovalsTab({ requests, loading, error, canApprove, onApprove, onReject, userRole }) {
   if (loading) {
     return (
       <div className="card p-8 flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card p-6 flex items-center gap-3 text-error-700 bg-error-50 border border-error-200 rounded-xl">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+        <div>
+          <p className="font-medium">Failed to load pending requests</p>
+          <p className="text-sm mt-0.5 text-error-600">{error.message}</p>
+        </div>
       </div>
     );
   }
