@@ -95,47 +95,30 @@ export function AuthProvider({ children }) {
   }
 
   async function registerCompany({ companyName, email, password, fullName, planId, crNumber, phone, industry, country, countryCode }) {
+    // Step 1: Create auth user — session is returned immediately (auto-confirm on)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     });
     if (authError) throw authError;
+    if (!authData.session) throw new Error('Sign-up did not return a session. Email confirmation may be required — please contact your administrator.');
 
-    const userId = authData.user.id;
-
-    const { data: co, error: coErr } = await supabase.from('companies').insert({
-      name: companyName,
-      email,
-      phone,
-      cr_number: crNumber,
-      industry,
-      country: country || null,
-      country_code: countryCode || null,
-      subscription_plan_id: planId,
-      subscription_status: 'active',
-      subscription_start: new Date().toISOString().split('T')[0],
-      admin_user_id: userId,
-    }).select().single();
-    if (coErr) throw coErr;
-
-    const { error: cuErr } = await supabase.from('company_users').insert({
-      company_id: co.id,
-      user_id: userId,
-      full_name: fullName,
-      email,
-      role: 'admin',
+    // Step 2: Delegate all DB inserts to the edge function so they run under
+    // service-role and bypass RLS (the SELECT policy on `companies` cannot be
+    // satisfied until company_users exists, so client-side inserts fail).
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authData.session.access_token}`,
+      },
+      body: JSON.stringify({ companyName, fullName, planId, crNumber, phone, industry, country, countryCode }),
     });
-    if (cuErr) throw cuErr;
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Failed to create company record.');
 
-    await supabase.from('departments').insert([
-      { name: 'Human Resources', code: 'HR', company_id: co.id },
-      { name: 'Finance', code: 'FIN', company_id: co.id },
-      { name: 'Operations', code: 'OPS', company_id: co.id },
-      { name: 'Management', code: 'MGT', company_id: co.id },
-    ]);
-
-    return co;
+    return result.company;
   }
 
   async function refreshCompany() {
