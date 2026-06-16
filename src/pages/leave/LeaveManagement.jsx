@@ -284,7 +284,8 @@ function LeaveBalancesTab({ companyId }) {
 }
 
 function LeaveTypesTab() {
-  const { data: types = [], isLoading } = useLeaveTypes();
+  const { companyId } = useAuth();
+  const { data: types = [], isLoading } = useLeaveTypes(companyId);
   const approvalLabels = { any: 'Any', manager: 'Manager', hr: 'HR', admin: 'Admin' };
   return (
     <div className="card">
@@ -304,7 +305,7 @@ function LeaveTypesTab() {
 
 function LeaveRequestForm({ companyId, onClose }) {
   const { data: employees = [] } = useEmployees({ status: 'Active' }, companyId);
-  const { data: leaveTypes = [] } = useLeaveTypes();
+  const { data: leaveTypes = [] } = useLeaveTypes(companyId);
   const createLeave = useCreateLeaveRequest(companyId);
   const { register, handleSubmit, watch } = useForm({ defaultValues: {} });
   const startDate = watch('start_date'), endDate = watch('end_date');
@@ -338,7 +339,7 @@ function LeaveBalanceImportModal({ companyId, onClose }) {
   const qc = useQueryClient();
 
   const { data: employees = [] } = useEmployees({ status: 'Active' }, companyId);
-  const { data: leaveTypes = [] } = useLeaveTypes();
+  const { data: leaveTypes = [] } = useLeaveTypes(companyId);
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 

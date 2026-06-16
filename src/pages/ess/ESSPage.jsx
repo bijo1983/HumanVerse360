@@ -338,7 +338,7 @@ function ESSProfile({ emp }) {
 }
 
 function ESSLeaveForm({ empId, companyId, onClose }) {
-  const { data: leaveTypes = [] } = useLeaveTypes();
+  const { data: leaveTypes = [] } = useLeaveTypes(companyId);
   const createLeave = useCreateLeaveRequest(companyId);
   const { register, handleSubmit, watch } = useForm({ defaultValues: { employee_id: empId } });
   const startDate = watch('start_date');

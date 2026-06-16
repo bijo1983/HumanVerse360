@@ -106,13 +106,18 @@ export function useApprovePayrollRun() {
   });
 }
 
-export function useSalaryComponents() {
+export function useSalaryComponents(companyId) {
   return useQuery({
-    queryKey: ['salary-components'],
+    queryKey: ['salary-components', companyId ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase.from('salary_components').select('*').eq('is_active', true).order('sort_order');
+      // Returns global rows (company_id IS NULL) plus company-specific rows
+      const { data, error } = await supabase
+        .from('salary_components')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 }
