@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, CheckCircle, XCircle, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Upload, FileSpreadsheet, Clock, User, Calendar as CalendarIcon } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeaveRequests, useLeaveTypes, useUpdateLeaveRequest, useCreateLeaveRequest, useLeaveBalances, useInitLeaveBalances } from '../../hooks/useLeave';
 import { useEmployees } from '../../hooks/useEmployees';
@@ -15,8 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { downloadLeaveBalanceTemplate, parseLeaveBalanceImport } from '../../lib/excelUtils';
 
 export default function LeaveManagement() {
-  const { companyId } = useAuth();
-  const [tab, setTab] = useState('requests');
+  const { companyId, userRole } = useAuth();
+  const [tab, setTab] = useState('approvals');
   const [statusFilter, setStatusFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -24,29 +24,44 @@ export default function LeaveManagement() {
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const { data: requests = [], isLoading } = useLeaveRequests(
+  const { data: pendingRequests = [], isLoading: pendingLoading } = useLeaveRequests(
+    { status: 'Pending' },
+    companyId
+  );
+  const { data: allRequests = [], isLoading: allLoading } = useLeaveRequests(
     { status: statusFilter || undefined, year: yearFilter ? parseInt(yearFilter) : undefined },
     companyId
   );
+
   const updateLeave = useUpdateLeaveRequest();
 
-  const pendingCount = requests.filter(r => r.status === 'Pending').length;
-
-  const handleApprove = async (id) => updateLeave.mutateAsync({ id, status: 'Approved', approved_at: new Date().toISOString() });
+  const handleApprove = async (id) => {
+    await updateLeave.mutateAsync({ id, status: 'Approved', approved_by: null, approved_at: new Date().toISOString() });
+  };
   const handleReject = async () => {
     await updateLeave.mutateAsync({ id: rejectingId, status: 'Rejected', rejection_reason: rejectReason });
     setRejectingId(null);
     setRejectReason('');
   };
 
-  const columns = [
+  const canApprove = (leaveType) => {
+    if (!leaveType) return true;
+    const level = leaveType.approval_level;
+    if (!level || level === 'any') return true;
+    if (level === 'admin') return userRole === 'admin';
+    if (level === 'hr') return userRole === 'admin' || userRole === 'hr';
+    if (level === 'manager') return userRole === 'admin' || userRole === 'hr' || userRole === 'manager';
+    return true;
+  };
+
+  const allColumns = [
     { header: 'Employee', key: 'employees', render: (v) => v ? <div><p className="text-sm font-medium text-secondary-800">{v.first_name} {v.last_name}</p><p className="text-xs text-secondary-400">{v.employee_id}</p></div> : '–' },
     { header: 'Leave Type', key: 'leave_types', render: (v) => v ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{background:v.color}}/><span className="text-sm">{v.name}</span>{!v.is_paid && <Badge variant="warning" size="xs">Unpaid</Badge>}</div> : '–' },
     { header: 'From', key: 'start_date', render: (v) => formatDate(v) },
     { header: 'To', key: 'end_date', render: (v) => formatDate(v) },
     { header: 'Days', key: 'days_requested', render: (v) => <span className="font-semibold">{v}</span> },
     { header: 'Status', key: 'status', render: (v) => <StatusBadge status={v} /> },
-    { header: 'Actions', key: 'id', render: (id, row) => row.status === 'Pending' ? (
+    { header: 'Actions', key: 'id', render: (id, row) => row.status === 'Pending' && canApprove(row.leave_types) ? (
       <div className="flex gap-1">
         <button onClick={() => handleApprove(id)} className="p-1.5 bg-success-50 text-success-600 rounded-lg hover:bg-success-100" title="Approve"><CheckCircle className="w-3.5 h-3.5" /></button>
         <button onClick={() => setRejectingId(id)} className="p-1.5 bg-error-50 text-error-600 rounded-lg hover:bg-error-100" title="Reject"><XCircle className="w-3.5 h-3.5" /></button>
@@ -57,7 +72,8 @@ export default function LeaveManagement() {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   const tabList = [
-    { key: 'requests', label: 'Leave Requests', badge: pendingCount > 0 ? pendingCount : null },
+    { key: 'approvals', label: 'Pending Approvals', badge: pendingRequests.length > 0 ? pendingRequests.length : null },
+    { key: 'requests', label: 'All Requests' },
     { key: 'balances', label: 'Leave Balances' },
     { key: 'types', label: 'Leave Types' },
   ];
@@ -79,6 +95,18 @@ export default function LeaveManagement() {
           </button>
         ))}
       </div>
+
+      {tab === 'approvals' && (
+        <PendingApprovalsTab
+          requests={pendingRequests}
+          loading={pendingLoading}
+          canApprove={canApprove}
+          onApprove={handleApprove}
+          onReject={(id) => setRejectingId(id)}
+          userRole={userRole}
+        />
+      )}
+
       {tab === 'requests' && (
         <>
           <div className="card p-4 flex flex-wrap gap-3">
@@ -91,9 +119,10 @@ export default function LeaveManagement() {
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </Select>
           </div>
-          <div className="card"><Table columns={columns} data={requests} loading={isLoading} emptyMessage="No leave requests found." /></div>
+          <div className="card"><Table columns={allColumns} data={allRequests} loading={allLoading} emptyMessage="No leave requests found." /></div>
         </>
       )}
+
       {tab === 'balances' && <LeaveBalancesTab companyId={companyId} />}
       {tab === 'types' && <LeaveTypesTab />}
       {showForm && <LeaveRequestForm companyId={companyId} onClose={() => setShowForm(false)} />}
@@ -102,6 +131,101 @@ export default function LeaveManagement() {
         footer={<div className="flex justify-end gap-2"><button onClick={() => setRejectingId(null)} className="btn-secondary">Cancel</button><button onClick={handleReject} className="btn-danger">Reject</button></div>}>
         <FormField label="Rejection Reason" required><Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} /></FormField>
       </Modal>
+    </div>
+  );
+}
+
+function PendingApprovalsTab({ requests, loading, canApprove, onApprove, onReject, userRole }) {
+  if (loading) {
+    return (
+      <div className="card p-8 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (requests.length === 0) {
+    return (
+      <div className="card p-12 flex flex-col items-center justify-center gap-3 text-center">
+        <div className="w-12 h-12 bg-success-50 rounded-full flex items-center justify-center">
+          <CheckCircle className="w-6 h-6 text-success-500" />
+        </div>
+        <p className="text-secondary-700 font-medium">All caught up!</p>
+        <p className="text-sm text-secondary-400">No pending leave requests require your approval.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {requests.map(req => {
+        const allowed = canApprove(req.leave_types);
+        const level = req.leave_types?.approval_level;
+        const levelLabel = { any: 'Any', manager: 'Manager', hr: 'HR', admin: 'Admin' }[level] || 'Any';
+
+        return (
+          <div key={req.id} className="card p-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-primary-700">
+                    {req.employees?.first_name?.[0]}{req.employees?.last_name?.[0]}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-semibold text-secondary-900">{req.employees?.first_name} {req.employees?.last_name}</p>
+                  <p className="text-xs text-secondary-400">{req.employees?.employee_id}</p>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: req.leave_types?.color || '#6b7280' }} />
+                      <span className="text-sm text-secondary-700">{req.leave_types?.name}</span>
+                      {req.leave_types && !req.leave_types.is_paid && <Badge variant="warning" size="xs">Unpaid</Badge>}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-secondary-500">
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      <span>{formatDate(req.start_date)} – {formatDate(req.end_date)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3" />
+                      <span>{req.days_requested} day{req.days_requested !== 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                  {req.reason && (
+                    <p className="mt-2 text-xs text-secondary-500 italic">"{req.reason}"</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                {level && level !== 'any' && (
+                  <div className="flex items-center gap-1 text-xs text-secondary-500">
+                    <User className="w-3.5 h-3.5" />
+                    <span>Requires: <span className="font-semibold text-secondary-700">{levelLabel}</span></span>
+                  </div>
+                )}
+                {allowed ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onApprove(req.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-success-600 text-white text-sm font-medium rounded-lg hover:bg-success-700 transition-colors"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve
+                    </button>
+                    <button
+                      onClick={() => onReject(req.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-error-600 text-sm font-medium rounded-lg border border-error-200 hover:bg-error-50 transition-colors"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-secondary-400 italic">Approval requires {levelLabel} role</span>
+                )}
+                <p className="text-xs text-secondary-400">Submitted {formatDate(req.created_at?.split('T')[0])}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

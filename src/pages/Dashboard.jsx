@@ -88,9 +88,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Employees" value={isLoading ? '–' : stats?.totalEmployees} subValue={`${stats?.activeEmployees || 0} active`}
           icon={<Users className="w-5 h-5" />} color="blue" />
-        <StatCard label="Pending Leaves" value={isLoading ? '–' : stats?.pendingLeaves}
-          subValue={`${new Date().getFullYear()} YTD`}
-          icon={<Calendar className="w-5 h-5" />} color="yellow" />
+        <Link to="/leave" className="block">
+          <StatCard label="Pending Leaves" value={isLoading ? '–' : stats?.pendingLeaves}
+            subValue={stats?.pendingLeaves > 0 ? 'Click to review' : `${new Date().getFullYear()} YTD`}
+            icon={<Calendar className="w-5 h-5" />} color="yellow" />
+        </Link>
         <StatCard label="Document Alerts" value={isLoading ? '–' : stats?.expiringDocs}
           subValue="Expiring within 60 days"
           icon={<AlertTriangle className="w-5 h-5" />} color="red" />
