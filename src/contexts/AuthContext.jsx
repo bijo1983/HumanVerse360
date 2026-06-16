@@ -121,51 +121,22 @@ export function AuthProvider({ children }) {
         sessionUser = signInData.user;
       }
 
-      // Step 2: insert company — generate ID client-side to avoid needing a SELECT-return
-      // (SELECT policy blocks the row until company_users is populated)
-      const companyId = crypto.randomUUID();
-      const { error: companyError } = await supabase
-        .from('companies')
-        .insert({
-          id: companyId,
-          name: companyName,
-          email,
-          phone: phone || null,
-          cr_number: crNumber || null,
-          industry: industry || null,
-          country: country || null,
-          country_code: countryCode || null,
-          subscription_plan_id: planId,
-          subscription_status: 'active',
-          subscription_start: new Date().toISOString().split('T')[0],
-          admin_user_id: sessionUser.id,
-        });
+      // Step 2: call SECURITY DEFINER RPC — runs as postgres, bypasses all RLS,
+      // inserts company + company_users + departments atomically.
+      const { error: rpcError } = await supabase.rpc('register_company', {
+        p_company_name: companyName,
+        p_user_id:      sessionUser.id,
+        p_email:        email,
+        p_full_name:    fullName || email,
+        p_plan_id:      planId,
+        p_cr_number:    crNumber    || null,
+        p_phone:        phone       || null,
+        p_industry:     industry    || null,
+        p_country:      country     || null,
+        p_country_code: countryCode || null,
+      });
 
-      if (companyError) throw new Error(`Company creation failed: ${companyError.message} [${companyError.code}]`);
-
-      const company = { id: companyId };
-
-      // Step 3: link user to company — policy allows user_id = auth.uid()
-      const { error: cuError } = await supabase
-        .from('company_users')
-        .insert({
-          company_id: company.id,
-          user_id: sessionUser.id,
-          full_name: fullName || email,
-          email,
-          role: 'admin',
-          is_active: true,
-        });
-
-      if (cuError) throw new Error(`User linking failed: ${cuError.message} [${cuError.code}]`);
-
-      // Step 4: seed default departments (non-fatal)
-      await supabase.from('departments').insert([
-        { name: 'Human Resources', code: 'HR', company_id: company.id },
-        { name: 'Finance', code: 'FIN', company_id: company.id },
-        { name: 'Operations', code: 'OPS', company_id: company.id },
-        { name: 'Management', code: 'MGT', company_id: company.id },
-      ]);
+      if (rpcError) throw new Error(`Registration failed: ${rpcError.message} [${rpcError.code}]`);
 
       // Step 5: populate React state
       setUser(sessionUser);
