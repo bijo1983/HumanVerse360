@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import postgres from "npm:postgres";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,100 +7,79 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
-
-  try {
-    const body = await req.json();
-    const { email, password, companyName, fullName, planId, crNumber, phone, industry, country, countryCode } = body;
-
-    if (!email || !password || !companyName || !planId) {
-      return json({ success: false, error: "email, password, companyName, and planId are required" }, 400);
-    }
-
-    // All operations use the service-role client — no JWT from browser needed
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    // Validate plan
-    const { data: plan } = await admin.from("subscription_plans").select("id").eq("id", planId).eq("is_active", true).maybeSingle();
-    if (!plan) return json({ success: false, error: "Invalid subscription plan" }, 400);
-
-    // Create (or find existing) auth user via admin API
-    let userId: string;
-    const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-    });
-
-    if (createErr) {
-      if (!/already registered|already exists/i.test(createErr.message)) {
-        return json({ success: false, error: createErr.message }, 400);
-      }
-      // Email already exists — look up the user
-      const { data: existing } = await admin.auth.admin.listUsers();
-      const found = existing?.users?.find((u) => u.email === email);
-      if (!found) return json({ success: false, error: "Could not locate existing account" }, 400);
-      userId = found.id;
-      // Update password so the subsequent signIn with the new password works
-      await admin.auth.admin.updateUserById(userId, { password, email_confirm: true });
-    } else {
-      userId = created.user.id;
-    }
-
-    // Guard: user already linked to a company
-    const { data: existingCU } = await admin.from("company_users").select("company_id").eq("user_id", userId).maybeSingle();
-    if (existingCU?.company_id) {
-      return json({ success: false, error: "This account is already linked to a company. Please log in." }, 400);
-    }
-
-    // Insert company
-    const { data: company, error: coErr } = await admin.from("companies").insert({
-      name: companyName,
-      email,
-      phone: phone || null,
-      cr_number: crNumber || null,
-      industry: industry || null,
-      country: country || null,
-      country_code: countryCode || null,
-      subscription_plan_id: planId,
-      subscription_status: "active",
-      subscription_start: new Date().toISOString().split("T")[0],
-      admin_user_id: userId,
-    }).select("id, name").single();
-    if (coErr) throw new Error(`Company insert failed: ${coErr.message}`);
-
-    // Link user as admin
-    const { error: cuErr } = await admin.from("company_users").insert({
-      company_id: company.id,
-      user_id: userId,
-      full_name: fullName || email,
-      email,
-      role: "admin",
-    });
-    if (cuErr) throw new Error(`company_users insert failed: ${cuErr.message}`);
-
-    // Seed default departments
-    await admin.from("departments").insert([
-      { name: "Human Resources", code: "HR",  company_id: company.id },
-      { name: "Finance",         code: "FIN", company_id: company.id },
-      { name: "Operations",      code: "OPS", company_id: company.id },
-      { name: "Management",      code: "MGT", company_id: company.id },
-    ]);
-
-    return json({ success: true });
-  } catch (e) {
-    return json({ success: false, error: (e as Error).message }, 500);
-  }
-});
-
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
+
+  let sql: ReturnType<typeof postgres> | null = null;
+
+  try {
+    const body = await req.json();
+    const { userId, companyName, email, fullName, planId, crNumber, phone, industry, country, countryCode } = body;
+
+    if (!userId || !companyName || !email || !planId) {
+      return json({ success: false, error: "Missing required fields: userId, companyName, email, planId" }, 400);
+    }
+
+    // Direct Postgres connection — bypasses PostgREST and service-role key complications entirely
+    sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false });
+
+    // Guard: already linked
+    const existing = await sql`
+      SELECT company_id FROM company_users WHERE user_id = ${userId}::uuid LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return json({ success: false, error: "Account already linked to a company. Please log in." }, 400);
+    }
+
+    // Validate plan
+    const planRows = await sql`
+      SELECT id FROM subscription_plans WHERE id = ${planId}::uuid AND is_active = true LIMIT 1
+    `;
+    if (planRows.length === 0) {
+      return json({ success: false, error: "Invalid subscription plan" }, 400);
+    }
+
+    // Insert company
+    const [company] = await sql`
+      INSERT INTO companies (
+        name, email, phone, cr_number, industry,
+        country, country_code, subscription_plan_id,
+        subscription_status, subscription_start, admin_user_id
+      ) VALUES (
+        ${companyName}, ${email},
+        ${phone || null}, ${crNumber || null}, ${industry || null},
+        ${country || null}, ${countryCode || null}, ${planId}::uuid,
+        'active', CURRENT_DATE, ${userId}::uuid
+      )
+      RETURNING id, name
+    `;
+
+    // Link admin user
+    await sql`
+      INSERT INTO company_users (company_id, user_id, full_name, email, role, is_active)
+      VALUES (${company.id}, ${userId}::uuid, ${fullName || email}, ${email}, 'admin', true)
+    `;
+
+    // Seed default departments
+    await sql`
+      INSERT INTO departments (name, code, company_id) VALUES
+        ('Human Resources', 'HR',  ${company.id}),
+        ('Finance',         'FIN', ${company.id}),
+        ('Operations',      'OPS', ${company.id}),
+        ('Management',      'MGT', ${company.id})
+    `;
+
+    return json({ success: true, companyId: company.id, companyName: company.name });
+  } catch (e) {
+    return json({ success: false, error: (e as Error).message }, 500);
+  } finally {
+    if (sql) await sql.end();
+  }
+});

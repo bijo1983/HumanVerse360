@@ -125,24 +125,23 @@ export function AuthProvider({ children }) {
         sessionUser = signInData.user;
       }
 
-      // Step 2: create company, company_users, and departments via SECURITY DEFINER RPC.
-      // Runs as the DB owner so it bypasses RLS completely.
-      // We pass p_user_id explicitly — more reliable than depending on auth.uid()
-      // being set inside PostgREST for a brand-new session.
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('register_company', {
-        p_user_id:      sessionUser.id,
-        p_company_name: companyName,
-        p_email:        email,
-        p_full_name:    fullName,
-        p_plan_id:      planId,
-        p_cr_number:    crNumber    || null,
-        p_phone:        phone       || null,
-        p_industry:     industry    || null,
-        p_country:      country     || null,
-        p_country_code: countryCode || null,
+      // Step 2: create company via edge function which uses a direct Postgres connection.
+      // This bypasses PostgREST entirely — no dependency on schema cache or auth.uid().
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId:      sessionUser.id,
+          companyName, email, fullName, planId,
+          crNumber:    crNumber    || null,
+          phone:       phone       || null,
+          industry:    industry    || null,
+          country:     country     || null,
+          countryCode: countryCode || null,
+        }),
       });
-      if (rpcErr) throw new Error(rpcErr.message);
-      if (!rpcData) throw new Error('Company creation returned no data — please try again.');
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Company creation failed. Please try again.');
 
       // Step 3: populate React state now that company exists
       setUser(sessionUser);
