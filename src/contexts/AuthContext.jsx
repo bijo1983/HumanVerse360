@@ -127,7 +127,10 @@ export function AuthProvider({ children }) {
 
       // Step 2: create company, company_users, and departments via SECURITY DEFINER RPC.
       // Runs as the DB owner so it bypasses RLS completely.
-      const { error: rpcErr } = await supabase.rpc('register_company', {
+      // We pass p_user_id explicitly — more reliable than depending on auth.uid()
+      // being set inside PostgREST for a brand-new session.
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('register_company', {
+        p_user_id:      sessionUser.id,
         p_company_name: companyName,
         p_email:        email,
         p_full_name:    fullName,
@@ -139,6 +142,7 @@ export function AuthProvider({ children }) {
         p_country_code: countryCode || null,
       });
       if (rpcErr) throw new Error(rpcErr.message);
+      if (!rpcData) throw new Error('Company creation returned no data — please try again.');
 
       // Step 3: populate React state now that company exists
       setUser(sessionUser);
