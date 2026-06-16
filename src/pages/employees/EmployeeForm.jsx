@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { Plus, Edit, Trash2, GraduationCap, Briefcase, Users } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../lib/calculations';
 import { ConfirmModal } from '../../components/ui/Modal';
+import ImageUploadCrop from '../../components/ui/ImageUploadCrop';
 
 const TABS = ['Personal', 'Employment', 'Salary', 'Education', 'Work History', 'Dependents', 'Documents', 'Banking'];
 
@@ -33,6 +34,7 @@ export default function EmployeeForm({ employee, onClose }) {
   const countryCode = company?.country_code || 'BH';
   const nationalId = NATIONAL_ID[countryCode] || NATIONAL_ID.default;
   const [tab, setTab] = useState('Personal');
+  const [profilePhoto, setProfilePhoto] = useState(employee?.profile_photo || '');
   const { data: departments = [] } = useDepartments(companyId);
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: employee || { employment_type: 'Full-Time', status: 'Active', gender: 'Male', basic_salary: 0, housing_allowance: 0, transport_allowance: 0, food_allowance: 0, other_allowances: 0 },
@@ -89,9 +91,9 @@ export default function EmployeeForm({ employee, onClose }) {
     try {
       let savedId = employee?.id;
       if (isEdit) {
-        await updateEmployee.mutateAsync({ id: employee.id, ...data });
+        await updateEmployee.mutateAsync({ id: employee.id, ...data, profile_photo: profilePhoto || null });
       } else {
-        const result = await createEmployee.mutateAsync(data);
+        const result = await createEmployee.mutateAsync({ ...data, profile_photo: profilePhoto || null });
         savedId = result?.id;
       }
       // Save custom field values
@@ -129,6 +131,29 @@ export default function EmployeeForm({ employee, onClose }) {
       <form className="space-y-4">
         {tab === 'Personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Profile photo */}
+            <div className="sm:col-span-2 flex items-center gap-5 pb-4 border-b border-secondary-100">
+              <ImageUploadCrop
+                value={profilePhoto}
+                onChange={url => setProfilePhoto(url)}
+                bucket="employee-photos"
+                storagePath={`${companyId}`}
+                aspect={1}
+                shape="round"
+                label="Upload Photo"
+                previewClass="w-20 h-20"
+              />
+              <div>
+                <p className="text-sm font-medium text-secondary-700">Profile Photo</p>
+                <p className="text-xs text-secondary-400 mt-0.5">Click to upload. You can crop after selecting.</p>
+                {profilePhoto && (
+                  <button type="button" onClick={() => setProfilePhoto('')}
+                    className="text-xs text-error-500 hover:text-error-700 mt-1 transition-colors">
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            </div>
             <FormField label="First Name" required error={errors.first_name?.message}><Input {...register('first_name', { required: 'Required' })} placeholder="John" error={errors.first_name} /></FormField>
             <FormField label="Last Name" required error={errors.last_name?.message}><Input {...register('last_name', { required: 'Required' })} placeholder="Doe" error={errors.last_name} /></FormField>
             <FormField label="Arabic Name"><Input {...register('arabic_name')} placeholder="الاسم بالعربي" dir="rtl" /></FormField>

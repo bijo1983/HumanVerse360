@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit, Trash2, Save, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Save } from 'lucide-react';
 import { Table } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import LookupSettings from './LookupSettings';
 import EmployeeNumbering from './EmployeeNumbering';
 import UserManagement from './UserManagement';
+import ImageUploadCrop from '../../components/ui/ImageUploadCrop';
 
 const GCC_COUNTRIES = [
   { code: 'BH', name: 'Bahrain' },
@@ -77,12 +78,15 @@ function CompanyProfileTab({ companyId }) {
   });
 
   const { register, handleSubmit, watch, setValue, formState: { isDirty } } = useForm({ values: company || {} });
-  const logoUrl = watch('logo_url');
+  const [logoUrl, setLogoUrl] = useState('');
+  // Sync logoUrl from react-hook-form values when company loads
+  const watchedLogo = watch('logo_url');
+  const effectiveLogo = logoUrl || watchedLogo || '';
 
   const save = useMutation({
     mutationFn: async (data) => {
       const countryObj = GCC_COUNTRIES.find(c => c.code === data.country_code);
-      const payload = { ...data };
+      const payload = { ...data, logo_url: effectiveLogo || data.logo_url || null };
       if (countryObj) payload.country = countryObj.name;
       const { error } = await supabase.from('companies').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', companyId);
       if (error) throw error;
@@ -95,20 +99,32 @@ function CompanyProfileTab({ companyId }) {
   return (
     <form onSubmit={handleSubmit(d => save.mutate(d))} className="space-y-4">
       <div className="card p-6 space-y-6">
-        <div className="flex items-start gap-6">
-          <div className="flex-shrink-0">
-            {logoUrl ? (
-              <img src={logoUrl} alt="Company logo" className="w-20 h-20 rounded-xl object-contain border border-secondary-200 bg-white p-1" />
-            ) : (
-              <div className="w-20 h-20 rounded-xl bg-secondary-100 flex items-center justify-center">
-                <Upload className="w-6 h-6 text-secondary-400" />
-              </div>
-            )}
-          </div>
-          <div className="flex-1 space-y-1">
+        <div className="flex items-start gap-5">
+          <ImageUploadCrop
+            value={effectiveLogo}
+            onChange={url => { setLogoUrl(url); setValue('logo_url', url, { shouldDirty: true }); }}
+            bucket="company-logos"
+            storagePath={companyId}
+            aspect={undefined}
+            shape="rect"
+            label="Upload Logo"
+            previewClass="w-24 h-24"
+          />
+          <div className="flex-1 pt-1">
             <p className="text-sm font-medium text-secondary-700">Company Logo</p>
-            <p className="text-xs text-secondary-400">Paste a public URL to your company logo. It will appear on the login page.</p>
-            <Input {...register('logo_url')} placeholder="https://example.com/logo.png" className="mt-2" />
+            <p className="text-xs text-secondary-400 mt-0.5 leading-relaxed">
+              Upload from your computer. After selecting, you can crop as needed.
+              The logo appears on salary slips and the login page.
+            </p>
+            {effectiveLogo && (
+              <button
+                type="button"
+                onClick={() => { setLogoUrl(''); setValue('logo_url', '', { shouldDirty: true }); }}
+                className="text-xs text-error-500 hover:text-error-700 mt-2 transition-colors"
+              >
+                Remove logo
+              </button>
+            )}
           </div>
         </div>
 
