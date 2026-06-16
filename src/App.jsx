@@ -16,6 +16,7 @@ import GeneralSettings from './pages/settings/GeneralSettings';
 import ESSPage from './pages/ess/ESSPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import ResetPassword from './pages/auth/ResetPassword';
 import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import AdminPage from './pages/admin/AdminPage';
 
@@ -60,6 +61,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
         <Route index element={<AdminPage />} />
       </Route>

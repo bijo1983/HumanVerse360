@@ -74,6 +74,12 @@ export function AuthProvider({ children }) {
       (async () => {
         // Skip while registerCompany is running — it manages state manually
         if (registeringRef.current) return;
+        // PASSWORD_RECOVERY: the reset-password page handles this; don't load company data
+        if (event === 'PASSWORD_RECOVERY') {
+          setUser(session?.user ?? null);
+          setLoading(false);
+          return;
+        }
         setUser(session?.user ?? null);
         if (session?.user) {
           await loadUserData(session.user);
