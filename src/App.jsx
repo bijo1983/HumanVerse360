@@ -36,8 +36,9 @@ function ProtectedRoute({ children }) {
       </div>
     );
   }
-  if (!user || !company) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/admin" replace />;
+  if (!company) return <Navigate to="/login" replace />;
   return children;
 }
 
