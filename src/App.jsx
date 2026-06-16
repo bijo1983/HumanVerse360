@@ -19,6 +19,7 @@ import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
 import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import AdminPage from './pages/admin/AdminPage';
+import PortalApp from './pages/portal/PortalApp';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -60,6 +61,9 @@ function AdminRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Employee portal — standalone, uses separate auth client */}
+      <Route path="/portal/:slug/*" element={<PortalApp />} />
+
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />

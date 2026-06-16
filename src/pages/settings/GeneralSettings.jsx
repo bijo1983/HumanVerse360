@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit, Trash2, Save } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, Copy, ExternalLink, CheckCheck } from 'lucide-react';
 import { Table } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
@@ -160,6 +160,11 @@ function CompanyProfileTab({ companyId }) {
             <Textarea {...register('address')} rows={2} placeholder="Full company address" />
           </FormField>
         </div>
+
+        {/* Employee Portal Link */}
+        {company?.portal_slug && (
+          <PortalLinkSection slug={company.portal_slug} companyId={companyId} qc={qc} />
+        )}
       </div>
 
       <div className="flex justify-end">
@@ -171,6 +176,76 @@ function CompanyProfileTab({ companyId }) {
       {save.isSuccess && <p className="text-sm text-success-600 text-right">Saved successfully.</p>}
       {save.isError && <p className="text-sm text-error-600 text-right">{save.error.message}</p>}
     </form>
+  );
+}
+
+function PortalLinkSection({ slug, companyId, qc }) {
+  const [copied, setCopied] = useState(false);
+  const [editSlug, setEditSlug] = useState(false);
+  const [newSlug, setNewSlug] = useState(slug);
+  const [slugErr, setSlugErr] = useState('');
+  const portalUrl = `${window.location.origin}/portal/${slug}`;
+
+  const copy = () => {
+    navigator.clipboard.writeText(portalUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const saveSlug = async () => {
+    const clean = newSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    if (!clean) { setSlugErr('Slug cannot be empty.'); return; }
+    const { error } = await supabase.from('companies').update({ portal_slug: clean }).eq('id', companyId);
+    if (error) { setSlugErr(error.message); return; }
+    setEditSlug(false);
+    setSlugErr('');
+    qc.invalidateQueries({ queryKey: ['company-profile', companyId] });
+  };
+
+  return (
+    <div className="border-t border-secondary-100 pt-4">
+      <p className="text-sm font-medium text-secondary-700 mb-3">Employee Self-Service Portal</p>
+      <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-secondary-500 mb-1">Portal URL</p>
+            {editSlug ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-secondary-500">{window.location.origin}/portal/</span>
+                <input value={newSlug} onChange={e => setNewSlug(e.target.value)}
+                  className="flex-1 px-2 py-1 border border-secondary-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+            ) : (
+              <p className="text-sm font-mono text-primary-700 truncate">{portalUrl}</p>
+            )}
+            {slugErr && <p className="text-xs text-error-600 mt-1">{slugErr}</p>}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {!editSlug ? (
+            <>
+              <button type="button" onClick={copy} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                {copied ? <><CheckCheck className="w-3.5 h-3.5 text-success-600" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
+              </button>
+              <a href={portalUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5" /> Open Portal
+              </a>
+              <button type="button" onClick={() => { setEditSlug(true); setNewSlug(slug); }} className="btn-secondary text-xs px-3 py-1.5">
+                Edit URL
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={saveSlug} className="btn-primary text-xs px-3 py-1.5">Save</button>
+              <button type="button" onClick={() => { setEditSlug(false); setSlugErr(''); }} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
+            </>
+          )}
+        </div>
+        <p className="text-xs text-secondary-500">
+          Share this link with employees. They sign up using their Employee ID and work email, then log in with their password.
+        </p>
+      </div>
+    </div>
   );
 }
 
