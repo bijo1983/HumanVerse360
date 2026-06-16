@@ -39,13 +39,22 @@ export function AuthProvider({ children }) {
         setSubscription({ ...plan, planData: PLANS[plan.code] || PLANS.free });
       }
 
-      // Load per-user module grants for this company
       const { data: grants } = await supabase
         .from('company_user_modules')
         .select('module')
         .eq('company_id', cu.company_id)
         .eq('user_id', sessionUser.id);
       setUserModuleGrants(grants && grants.length > 0 ? grants.map(g => g.module) : null);
+    } else if (!adminRow) {
+      // Auth user exists but has no company and is not a platform admin —
+      // this is a stale/orphaned session; sign out to force re-registration.
+      await supabase.auth.signOut();
+      setUser(null);
+      setCompany(null);
+      setSubscription(null);
+      setUserRole(null);
+      setIsAdmin(false);
+      setUserModuleGrants(null);
     } else {
       setUserModuleGrants(null);
     }

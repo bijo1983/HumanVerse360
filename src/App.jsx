@@ -24,7 +24,7 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }) {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, company, loading, isAdmin } = useAuth();
   if (loading) {
     return (
       <div className="min-h-screen bg-secondary-50 flex items-center justify-center">
@@ -35,7 +35,7 @@ function ProtectedRoute({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !company) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/admin" replace />;
   return children;
 }
