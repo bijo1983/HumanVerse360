@@ -102,32 +102,35 @@ export function AuthProvider({ children }) {
       password,
       options: { data: { full_name: fullName } },
     });
-    if (signUpError) throw signUpError;
 
-    if (signUpData.session) {
-      // Fresh user — session granted immediately
+    const alreadyExists = /already registered|already exists/i.test(signUpError?.message || '');
+    if (signUpError && !alreadyExists) throw signUpError;
+
+    if (!signUpError && signUpData.session) {
       session = signUpData.session;
     } else {
-      // Email already exists in auth.users (previous failed registration).
-      // Sign in with the supplied password so we get a session to continue.
+      // Email already in auth.users — recover by signing in with the supplied password
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw new Error('This email is already registered. Please log in or use a different email address.');
+      if (signInError) throw new Error('An account with this email already exists. Please log in or use a different email.');
       session = signInData.session;
     }
 
-    // Run all DB inserts server-side under service-role to bypass RLS
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ companyName, fullName, planId, crNumber, phone, industry, country, countryCode }),
+    // Run all DB inserts via SECURITY DEFINER RPC — bypasses RLS without needing
+    // a service-role edge function.
+    const { data: company, error: rpcErr } = await supabase.rpc('register_company', {
+      p_company_name: companyName,
+      p_email:        email,
+      p_full_name:    fullName,
+      p_plan_id:      planId,
+      p_cr_number:    crNumber   || null,
+      p_phone:        phone      || null,
+      p_industry:     industry   || null,
+      p_country:      country    || null,
+      p_country_code: countryCode || null,
     });
-    const result = await res.json();
-    if (!result.success) throw new Error(result.error || 'Failed to create company record.');
+    if (rpcErr) throw new Error(rpcErr.message);
 
-    return result.company;
+    return company;
   }
 
   async function refreshCompany() {
