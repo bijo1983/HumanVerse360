@@ -95,23 +95,32 @@ export function AuthProvider({ children }) {
   }
 
   async function registerCompany({ companyName, email, password, fullName, planId, crNumber, phone, industry, country, countryCode }) {
-    // Step 1: Create auth user — session is returned immediately (auto-confirm on)
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    let session;
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     });
-    if (authError) throw authError;
-    if (!authData.session) throw new Error('Sign-up did not return a session. Email confirmation may be required — please contact your administrator.');
+    if (signUpError) throw signUpError;
 
-    // Step 2: Delegate all DB inserts to the edge function so they run under
-    // service-role and bypass RLS (the SELECT policy on `companies` cannot be
-    // satisfied until company_users exists, so client-side inserts fail).
+    if (signUpData.session) {
+      // Fresh user — session granted immediately
+      session = signUpData.session;
+    } else {
+      // Email already exists in auth.users (previous failed registration).
+      // Sign in with the supplied password so we get a session to continue.
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw new Error('This email is already registered. Please log in or use a different email address.');
+      session = signInData.session;
+    }
+
+    // Run all DB inserts server-side under service-role to bypass RLS
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authData.session.access_token}`,
+        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ companyName, fullName, planId, crNumber, phone, industry, country, countryCode }),
     });

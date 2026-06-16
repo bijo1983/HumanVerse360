@@ -41,6 +41,10 @@ Deno.serve(async (req: Request) => {
     const { data: plan } = await admin.from("subscription_plans").select("id").eq("id", planId).maybeSingle();
     if (!plan) return json({ success: false, error: "Invalid plan selected" }, 400);
 
+    // Guard against duplicate: user already has a company
+    const { data: existingCU } = await admin.from("company_users").select("company_id").eq("user_id", userId).maybeSingle();
+    if (existingCU?.company_id) return json({ success: false, error: "This account is already linked to a company. Please log in instead." }, 400);
+
     // Insert company
     const { data: company, error: coErr } = await admin.from("companies").insert({
       name: companyName,
