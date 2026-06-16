@@ -37,8 +37,22 @@ export default function Login() {
     setForgotError('');
     try {
       const redirectTo = `${window.location.origin}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), { redirectTo });
-      if (error) throw error;
+
+      // Try platform SMTP first via edge function
+      const { data, error: fnErr } = await supabase.functions.invoke('send-password-reset', {
+        body: { email: forgotEmail.trim(), redirectTo },
+      });
+
+      if (fnErr || data?.error === 'smtp_not_configured') {
+        // Platform SMTP not configured — fall back to Supabase built-in email
+        const { error: authErr } = await supabase.auth.resetPasswordForEmail(
+          forgotEmail.trim(), { redirectTo }
+        );
+        if (authErr) throw authErr;
+      } else if (data && !data.success) {
+        throw new Error(data.error || 'Failed to send reset email.');
+      }
+
       setMode('forgot_sent');
     } catch (e) {
       setForgotError(e.message || 'Failed to send reset email. Please try again.');
