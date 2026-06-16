@@ -121,10 +121,13 @@ export function AuthProvider({ children }) {
         sessionUser = signInData.user;
       }
 
-      // Step 2: insert company directly — authenticated user, policy allows any authenticated insert
-      const { data: company, error: companyError } = await supabase
+      // Step 2: insert company — generate ID client-side to avoid needing a SELECT-return
+      // (SELECT policy blocks the row until company_users is populated)
+      const companyId = crypto.randomUUID();
+      const { error: companyError } = await supabase
         .from('companies')
         .insert({
+          id: companyId,
           name: companyName,
           email,
           phone: phone || null,
@@ -136,11 +139,11 @@ export function AuthProvider({ children }) {
           subscription_status: 'active',
           subscription_start: new Date().toISOString().split('T')[0],
           admin_user_id: sessionUser.id,
-        })
-        .select('id, name')
-        .single();
+        });
 
       if (companyError) throw new Error(`Company creation failed: ${companyError.message} [${companyError.code}]`);
+
+      const company = { id: companyId };
 
       // Step 3: link user to company — policy allows user_id = auth.uid()
       const { error: cuError } = await supabase
