@@ -67,16 +67,39 @@ export function useLeaveRequests(filters = {}, companyId) {
     queryKey: ['leave-requests', filters, companyId],
     refetchOnMount: 'always',
     queryFn: async () => {
-      let q = supabase.from('leave_requests').select(`
-        *, employees(first_name, last_name, employee_id, department_id),
-        leave_types(name, code, color, is_paid, approval_level)
-      `).eq('company_id', companyId).order('created_at', { ascending: false });
+      if (!companyId) return [];
+
+      // 1. Fetch leave_requests without joins to avoid PostgREST join issues
+      let q = supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
       if (filters.employee_id) q = q.eq('employee_id', filters.employee_id);
-      if (filters.status) q = q.eq('status', filters.status);
-      if (filters.year) q = q.eq('year', filters.year);
-      const { data, error } = await q;
+      if (filters.status)      q = q.eq('status', filters.status);
+      if (filters.year)        q = q.eq('year', filters.year);
+
+      const { data: requests, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      if (!requests?.length) return [];
+
+      // 2. Enrich with employees and leave_types via separate queries
+      const empIds = [...new Set(requests.map(r => r.employee_id).filter(Boolean))];
+      const ltIds  = [...new Set(requests.map(r => r.leave_type_id).filter(Boolean))];
+
+      const [empRes, ltRes] = await Promise.all([
+        supabase.from('employees').select('id, first_name, last_name, employee_id, department_id').in('id', empIds),
+        supabase.from('leave_types').select('id, name, code, color, is_paid, approval_level').in('id', ltIds),
+      ]);
+
+      const empMap = Object.fromEntries((empRes.data ?? []).map(e => [e.id, e]));
+      const ltMap  = Object.fromEntries((ltRes.data  ?? []).map(t => [t.id, t]));
+
+      return requests.map(r => ({
+        ...r,
+        employees:   empMap[r.employee_id]   ?? null,
+        leave_types: ltMap[r.leave_type_id]  ?? null,
+      }));
     },
     enabled: !!companyId,
   });
@@ -85,15 +108,27 @@ export function useLeaveRequests(filters = {}, companyId) {
 export function useLeaveBalances(employeeId, year, companyId) {
   return useQuery({
     queryKey: ['leave-balances', employeeId, year, companyId],
+    refetchOnMount: 'always',
     queryFn: async () => {
-      let q = supabase.from('leave_balances').select(`
-        *, leave_types(name, code, color, days_per_year)
-      `).eq('company_id', companyId);
+      if (!companyId) return [];
+
+      // 1. Fetch balances without join
+      let q = supabase.from('leave_balances').select('*').eq('company_id', companyId);
       if (employeeId) q = q.eq('employee_id', employeeId);
-      if (year) q = q.eq('year', year);
-      const { data, error } = await q;
+      if (year)       q = q.eq('year', year);
+      const { data: balances, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      if (!balances?.length) return [];
+
+      // 2. Enrich with leave_types separately
+      const ltIds = [...new Set(balances.map(b => b.leave_type_id).filter(Boolean))];
+      const { data: types } = await supabase
+        .from('leave_types')
+        .select('id, name, code, color, days_per_year')
+        .in('id', ltIds);
+      const ltMap = Object.fromEntries((types ?? []).map(t => [t.id, t]));
+
+      return balances.map(b => ({ ...b, leave_types: ltMap[b.leave_type_id] ?? null }));
     },
     enabled: !!companyId,
   });
