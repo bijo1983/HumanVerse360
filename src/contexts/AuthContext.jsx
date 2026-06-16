@@ -102,6 +102,15 @@ export function AuthProvider({ children }) {
     registeringRef.current = true;
     let sessionUser = null;
 
+    const clearState = () => {
+      setUser(null);
+      setCompany(null);
+      setSubscription(null);
+      setUserRole(null);
+      setIsAdmin(false);
+      setUserModuleGrants(null);
+    };
+
     try {
       // Step 1: create or recover the auth user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -121,9 +130,8 @@ export function AuthProvider({ children }) {
         sessionUser = signInData.user;
       }
 
-      // Step 2: call SECURITY DEFINER RPC — runs as postgres, bypasses all RLS,
-      // inserts company + company_users + departments atomically.
-      const { error: rpcError } = await supabase.rpc('register_company', {
+      // Step 2: call SECURITY DEFINER RPC — runs as postgres, bypasses all RLS
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_company', {
         p_company_name: companyName,
         p_user_id:      sessionUser.id,
         p_email:        email,
@@ -136,13 +144,49 @@ export function AuthProvider({ children }) {
         p_country_code: countryCode || null,
       });
 
-      if (rpcError) throw new Error(`Registration failed: ${rpcError.message} [${rpcError.code}]`);
+      if (rpcError) {
+        throw new Error(`Registration RPC failed: ${rpcError.message} (code: ${rpcError.code}, hint: ${rpcError.hint || 'none'})`);
+      }
 
-      // Step 5: populate React state
+      // Step 3: verify the company_users row is actually visible before proceeding
+      // Retry up to 5 times with 400ms gaps to handle any replication lag
+      let cu = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data } = await supabase
+          .from('company_users')
+          .select('company_id, role, companies(id, name, subscription_plans(*))')
+          .eq('user_id', sessionUser.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (data?.company_id) { cu = data; break; }
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      if (!cu) {
+        // Capture the exact DB state for diagnosis
+        const { data: rawCompany } = await supabase
+          .from('companies')
+          .select('id, name, email')
+          .eq('email', email)
+          .maybeSingle();
+
+        const rpcResult = rpcData ? JSON.stringify(rpcData) : 'null';
+        throw new Error(
+          `Company created (RPC returned: ${rpcResult}) but company_users link is missing. ` +
+          `companies row: ${rawCompany ? JSON.stringify(rawCompany) : 'not found'}. ` +
+          `User ID: ${sessionUser.id}. Please contact support.`
+        );
+      }
+
+      // Step 4: populate React state — only reached if company is confirmed in DB
+      const plan = cu.companies?.subscription_plans;
       setUser(sessionUser);
-      await loadUserData(sessionUser);
+      setCompany(cu.companies);
+      setUserRole(cu.role);
+      if (plan) setSubscription({ ...plan, planData: PLANS[plan.code] || PLANS.free });
       setLoading(false);
     } catch (err) {
+      clearState();
       if (sessionUser) await supabase.auth.signOut();
       throw err;
     } finally {

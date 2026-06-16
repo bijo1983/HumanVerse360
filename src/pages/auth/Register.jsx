@@ -394,9 +394,12 @@ export default function Register() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-error-50 border border-error-200 rounded-xl mb-4 text-sm text-error-700">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {error}
+                <div className="p-3 bg-error-50 border border-error-200 rounded-xl mb-4">
+                  <div className="flex items-start gap-2 text-sm text-error-700 mb-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span className="font-medium">Registration failed</span>
+                  </div>
+                  <pre className="text-xs text-error-800 whitespace-pre-wrap break-all font-mono bg-error-100 rounded p-2 select-all">{error}</pre>
                 </div>
               )}
 
