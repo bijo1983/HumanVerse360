@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { PLANS } from '../lib/plans';
 
@@ -13,6 +13,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   // null = use plan defaults; array = custom grants for this user
   const [userModuleGrants, setUserModuleGrants] = useState(null);
+  // Prevents onAuthStateChange from clobbering state mid-registration
+  const registeringRef = useRef(false);
 
   async function loadUserData(sessionUser) {
     const { data: adminRow } = await supabase
@@ -61,6 +63,8 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
       (async () => {
+        // Skip while registerCompany is running — it manages state manually
+        if (registeringRef.current) return;
         setUser(session?.user ?? null);
         if (session?.user) {
           await loadUserData(session.user);
@@ -95,21 +99,58 @@ export function AuthProvider({ children }) {
   }
 
   async function registerCompany({ companyName, email, password, fullName, planId, crNumber, phone, industry, country, countryCode }) {
-    // Step 1: edge function creates the auth user + company server-side atomically.
-    // We do NOT call supabase.auth.signUp() here — that would fire onAuthStateChange
-    // before the company exists, causing a race condition where loadUserData finds nothing.
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, companyName, fullName, planId, crNumber, phone, industry, country, countryCode }),
-    });
-    const result = await res.json();
-    if (!result.success) throw new Error(result.error || 'Registration failed. Please try again.');
+    // Block onAuthStateChange from touching React state while we run this flow.
+    // Without this guard, signUp() fires SIGNED_IN before the company exists,
+    // loadUserData finds nothing, and PublicRoute redirects the user away mid-flow.
+    registeringRef.current = true;
+    let sessionUser = null;
 
-    // Step 2: sign in so onAuthStateChange fires — at this point the company already
-    // exists, so loadUserData will find it and populate the React state correctly.
-    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInErr) throw new Error('Account created but sign-in failed: ' + signInErr.message);
+    try {
+      // Step 1: create or recover the auth user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      });
+
+      const alreadyExists = /already registered|already exists/i.test(signUpError?.message || '');
+      if (signUpError && !alreadyExists) throw signUpError;
+
+      if (!signUpError && signUpData.session) {
+        sessionUser = signUpData.user;
+      } else {
+        // Email already in auth.users — sign in to recover the session
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw new Error('This email is already registered. Please log in or use a different email.');
+        sessionUser = signInData.user;
+      }
+
+      // Step 2: create company, company_users, and departments via SECURITY DEFINER RPC.
+      // Runs as the DB owner so it bypasses RLS completely.
+      const { error: rpcErr } = await supabase.rpc('register_company', {
+        p_company_name: companyName,
+        p_email:        email,
+        p_full_name:    fullName,
+        p_plan_id:      planId,
+        p_cr_number:    crNumber    || null,
+        p_phone:        phone       || null,
+        p_industry:     industry    || null,
+        p_country:      country     || null,
+        p_country_code: countryCode || null,
+      });
+      if (rpcErr) throw new Error(rpcErr.message);
+
+      // Step 3: populate React state now that company exists
+      setUser(sessionUser);
+      await loadUserData(sessionUser);
+      setLoading(false);
+    } catch (err) {
+      // If we got a session but company creation failed, sign out to keep things clean
+      if (sessionUser) await supabase.auth.signOut();
+      throw err;
+    } finally {
+      registeringRef.current = false;
+    }
   }
 
   async function refreshCompany() {
