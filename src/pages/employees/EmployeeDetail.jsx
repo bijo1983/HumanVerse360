@@ -17,6 +17,9 @@ export default function EmployeeDetail() {
   const { data: emp, isLoading } = useEmployee(id);
   const { data: balances = [] } = useLeaveBalances(id, new Date().getFullYear(), companyId);
   const { data: documents = [] } = useDocuments({ employee_id: id }, companyId);
+  // Profile-synced documents (CPR, Passport, Visa, Work Permit) mirror the employee
+  // profile fields already visible on this page — exclude them to avoid duplication.
+  const manualDocuments = documents.filter(d => !d.profile_sync);
 
   if (isLoading) return <div className="card p-8 text-center text-secondary-400">Loading...</div>;
   if (!emp) return <div className="card p-8 text-center text-secondary-400">Employee not found</div>;
@@ -125,11 +128,11 @@ export default function EmployeeDetail() {
           {/* Documents */}
           <div className="card p-5">
             <h3 className="section-title mb-3 flex items-center gap-2"><FileText className="w-4 h-4 text-warning-500" /> Documents</h3>
-            {documents.length === 0 ? (
-              <p className="text-sm text-secondary-400">No documents added yet.</p>
+            {manualDocuments.length === 0 ? (
+              <p className="text-sm text-secondary-400">No additional documents added yet.</p>
             ) : (
               <div className="space-y-2">
-                {documents.map(doc => {
+                {manualDocuments.map(doc => {
                   const days = getDaysUntilExpiry(doc.expiry_date);
                   const status = getDocumentStatus(doc.expiry_date);
                   return (

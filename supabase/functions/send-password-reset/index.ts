@@ -11,13 +11,23 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
   try {
-    const { email, redirectTo } = await req.json();
+    const { email } = await req.json();
     if (!email) return json({ success: false, error: "Email is required." });
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Verify the user exists — always return success to prevent email enumeration
+    const { data: usersPage } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const userExists = (usersPage?.users ?? []).some(
+      (u) => u.email?.toLowerCase() === email.trim().toLowerCase()
+    );
+    if (!userExists) {
+      // Silently succeed — don't reveal whether the email exists
+      return json({ success: true });
+    }
 
     // Load platform SMTP settings
     const { data: rows } = await supabase
@@ -33,24 +43,17 @@ Deno.serve(async (req: Request) => {
       return json({ success: false, error: "smtp_not_configured" });
     }
 
-    // Generate a Supabase recovery link using admin API.
-    // We always return success to the caller regardless of whether the email exists
-    // (prevents email enumeration).
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: "recovery",
+    // Generate 6-digit OTP and store it (10-min expiry, purpose = password_reset)
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    await supabase.from("email_otps").delete().eq("email", email.trim().toLowerCase());
+    const { error: insertErr } = await supabase.from("email_otps").insert({
       email: email.trim().toLowerCase(),
-      options: { redirectTo: redirectTo || "" },
+      otp,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
+    if (insertErr) throw new Error(`Failed to store OTP: ${insertErr.message}`);
 
-    if (linkError || !linkData?.properties?.action_link) {
-      // Log server-side but silently succeed to the client
-      console.error("generateLink:", linkError?.message ?? "no action_link");
-      return json({ success: true });
-    }
-
-    const resetLink = linkData.properties.action_link;
-
-    // Send via platform SMTP
+    // Send OTP email via platform SMTP
     const nodemailer = await import("npm:nodemailer@6");
     const portNum = Number(smtp.smtp_port) || 587;
     const useSsl = portNum === 465;
@@ -74,48 +77,27 @@ Deno.serve(async (req: Request) => {
 
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#ffffff;">
-        <!-- Header -->
         <div style="text-align:center;margin-bottom:28px;">
           <div style="display:inline-block;background:linear-gradient(135deg,#0D2554,#1B3A6E);border-radius:12px;padding:10px 20px;">
             <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:1px;">HumanVerse360</span>
           </div>
         </div>
-
-        <!-- Icon -->
         <div style="text-align:center;margin-bottom:20px;">
           <div style="display:inline-block;background:#EFF6FF;border-radius:50%;width:56px;height:56px;line-height:56px;font-size:26px;">🔑</div>
         </div>
-
-        <!-- Title -->
-        <h2 style="color:#1B3A6E;text-align:center;font-size:22px;margin:0 0 8px;">Reset Your Password</h2>
+        <h2 style="color:#1B3A6E;text-align:center;font-size:22px;margin:0 0 8px;">Password Reset Code</h2>
         <p style="color:#6B7280;text-align:center;font-size:14px;margin:0 0 28px;line-height:1.6;">
-          We received a request to reset the password for your HumanVerse360 account.
-          Click the button below to set a new password.
+          Enter the code below to reset your HumanVerse360 password.
         </p>
-
-        <!-- CTA Button -->
-        <div style="text-align:center;margin-bottom:28px;">
-          <a href="${resetLink}"
-             style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#1B3A6E,#2563EB);color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;letter-spacing:0.3px;">
-            Reset Password
-          </a>
+        <div style="background:#F0F4FF;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
+          <div style="font-size:40px;font-weight:800;letter-spacing:12px;color:#1B3A6E;font-family:monospace;">${otp}</div>
+          <p style="color:#888;font-size:13px;margin-top:8px;">Expires in 10 minutes</p>
         </div>
-
-        <!-- Expiry notice -->
         <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
           <p style="color:#92400E;font-size:13px;margin:0;text-align:center;">
-            ⏱ This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.
+            If you did not request a password reset, you can safely ignore this email.
           </p>
         </div>
-
-        <!-- Fallback link -->
-        <p style="color:#9CA3AF;font-size:12px;text-align:center;margin-bottom:4px;">
-          If the button doesn't work, copy and paste this URL into your browser:
-        </p>
-        <p style="color:#6B7280;font-size:11px;text-align:center;word-break:break-all;margin-bottom:24px;">
-          ${resetLink}
-        </p>
-
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;" />
         <p style="color:#D1D5DB;font-size:11px;text-align:center;margin:0;">
           HumanVerse360 — HR &amp; Payroll. Simplified. Intelligent. Secure.
@@ -126,9 +108,9 @@ Deno.serve(async (req: Request) => {
     await transporter.sendMail({
       from: fromAddr,
       to: email.trim(),
-      subject: "Reset Your HumanVerse360 Password",
+      subject: "Your HumanVerse360 Password Reset Code",
       html,
-      text: `Reset your HumanVerse360 password by visiting this link:\n\n${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, ignore this email.`,
+      text: `Your HumanVerse360 password reset code is: ${otp}\n\nThis code expires in 10 minutes.\n\nIf you did not request this, ignore this email.`,
     });
 
     return json({ success: true });
