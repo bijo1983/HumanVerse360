@@ -99,9 +99,6 @@ export function AuthProvider({ children }) {
   }
 
   async function registerCompany({ companyName, email, password, fullName, planId, crNumber, phone, industry, country, countryCode }) {
-    // Block onAuthStateChange from touching React state while we run this flow.
-    // Without this guard, signUp() fires SIGNED_IN before the company exists,
-    // loadUserData finds nothing, and PublicRoute redirects the user away mid-flow.
     registeringRef.current = true;
     let sessionUser = null;
 
@@ -119,36 +116,59 @@ export function AuthProvider({ children }) {
       if (!signUpError && signUpData.session) {
         sessionUser = signUpData.user;
       } else {
-        // Email already in auth.users — sign in to recover the session
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw new Error('This email is already registered. Please log in or use a different email.');
         sessionUser = signInData.user;
       }
 
-      // Step 2: create company via edge function which uses a direct Postgres connection.
-      // This bypasses PostgREST entirely — no dependency on schema cache or auth.uid().
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-company`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId:      sessionUser.id,
-          companyName, email, fullName, planId,
-          crNumber:    crNumber    || null,
-          phone:       phone       || null,
-          industry:    industry    || null,
-          country:     country     || null,
-          countryCode: countryCode || null,
-        }),
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error || 'Company creation failed. Please try again.');
+      // Step 2: insert company directly — authenticated user, policy allows any authenticated insert
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .insert({
+          name: companyName,
+          email,
+          phone: phone || null,
+          cr_number: crNumber || null,
+          industry: industry || null,
+          country: country || null,
+          country_code: countryCode || null,
+          subscription_plan_id: planId,
+          subscription_status: 'active',
+          subscription_start: new Date().toISOString().split('T')[0],
+          admin_user_id: sessionUser.id,
+        })
+        .select('id, name')
+        .single();
 
-      // Step 3: populate React state now that company exists
+      if (companyError) throw new Error(`Company creation failed: ${companyError.message} [${companyError.code}]`);
+
+      // Step 3: link user to company — policy allows user_id = auth.uid()
+      const { error: cuError } = await supabase
+        .from('company_users')
+        .insert({
+          company_id: company.id,
+          user_id: sessionUser.id,
+          full_name: fullName || email,
+          email,
+          role: 'admin',
+          is_active: true,
+        });
+
+      if (cuError) throw new Error(`User linking failed: ${cuError.message} [${cuError.code}]`);
+
+      // Step 4: seed default departments (non-fatal)
+      await supabase.from('departments').insert([
+        { name: 'Human Resources', code: 'HR', company_id: company.id },
+        { name: 'Finance', code: 'FIN', company_id: company.id },
+        { name: 'Operations', code: 'OPS', company_id: company.id },
+        { name: 'Management', code: 'MGT', company_id: company.id },
+      ]);
+
+      // Step 5: populate React state
       setUser(sessionUser);
       await loadUserData(sessionUser);
       setLoading(false);
     } catch (err) {
-      // If we got a session but company creation failed, sign out to keep things clean
       if (sessionUser) await supabase.auth.signOut();
       throw err;
     } finally {
