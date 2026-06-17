@@ -44,8 +44,9 @@ function ProtectedRoute({ children }) {
 }
 
 function PublicRoute({ children }) {
-  const { user, company, loading } = useAuth();
+  const { user, company, loading, isAdmin } = useAuth();
   if (loading) return null;
+  if (user && isAdmin) return <Navigate to="/admin" replace />;
   if (user && company) return <Navigate to="/" replace />;
   return children;
 }
