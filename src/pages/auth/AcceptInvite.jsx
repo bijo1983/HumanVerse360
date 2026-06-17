@@ -137,7 +137,7 @@ export default function AcceptInvite() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#F0F4F9' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="/ChatGPT_Image_Jun_16,_2026,_01_56_49_PM.png" alt="HumanVerse360" className="w-36 mx-auto" />
+          <img src="/image_copy_copy.png" alt="HumanVerse360" className="w-36 mx-auto" />
         </div>
 
         <div className="h-1 rounded-t-xl" style={{ background: 'linear-gradient(to right, #1B3A6E, #2563EB 50%, #3DB83F)' }} />

@@ -104,7 +104,7 @@ export default function AboutPage() {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/image.png" alt="HumanVerse360" className="w-9 h-9 object-contain" />
+            <img src="/image_copy_copy.png" alt="HumanVerse360" className="w-9 h-9 object-contain" />
             <span className="text-lg font-black">
               <span style={{ color: '#1B3A6E' }}>Human</span>
               <span style={{ color: '#2563EB' }}>Verse</span>
@@ -139,7 +139,7 @@ export default function AboutPage() {
 
         <div className="relative z-10 max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-6">
-            <img src="/image.png" alt="HumanVerse360" className="w-24 h-24 object-contain drop-shadow-2xl" />
+            <img src="/image_copy_copy.png" alt="HumanVerse360" className="w-24 h-24 object-contain drop-shadow-2xl" />
           </div>
           <h1 className="text-5xl font-black mb-3 leading-tight">
             <span style={{ color: '#ffffff' }}>Human</span>
@@ -463,7 +463,7 @@ export default function AboutPage() {
       <footer className="py-10 px-6 bg-gray-900 text-center">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-center gap-2.5 mb-4">
-            <img src="/image.png" alt="HumanVerse360" className="w-7 h-7 object-contain opacity-80" />
+            <img src="/image_copy_copy.png" alt="HumanVerse360" className="w-7 h-7 object-contain opacity-80" />
             <span className="font-black text-base">
               <span className="text-white">Human</span>
               <span style={{ color: '#7DC8FF' }}>Verse</span>

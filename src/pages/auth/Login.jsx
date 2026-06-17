@@ -189,7 +189,7 @@ export default function Login() {
 
       <div className="relative z-10 flex flex-col items-center px-12 max-w-lg text-center">
         <div className="mb-5">
-          <img src="/image.png" alt="HumanVerse360 Logo" className="w-32 h-32 object-contain drop-shadow-md" />
+          <img src="/image_copy_copy.png" alt="HumanVerse360 Logo" className="w-32 h-32 object-contain drop-shadow-md" />
         </div>
 
         <div className="mb-1">
@@ -249,7 +249,7 @@ export default function Login() {
         {/* Mobile logo */}
         <div className="lg:hidden mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <img src="/image.png" alt="HumanVerse360" className="w-12 h-12 object-contain" />
+            <img src="/image_copy_copy.png" alt="HumanVerse360" className="w-12 h-12 object-contain" />
             <h1 className="text-2xl font-black leading-none">
               <span style={{ color: '#1B3A6E' }}>Human</span>
               <span style={{ color: '#2563EB' }}>Verse</span>
