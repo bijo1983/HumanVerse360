@@ -79,8 +79,6 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Forgot-password multi-step state
-  // mode: 'login' | 'forgot_email' | 'forgot_otp' | 'forgot_newpass' | 'forgot_done'
   const [mode, setMode] = useState('login');
   const [forgotEmail, setForgotEmail] = useState('');
   const [otpValue, setOtpValue] = useState('');
@@ -93,7 +91,6 @@ export default function Login() {
 
   const { register, handleSubmit, getValues, formState: { errors, isSubmitting } } = useForm();
 
-  // ── Login submit ────────────────────────────────────────────────────────────
   async function onSubmit({ email, password }) {
     setLoginError('');
     try {
@@ -115,7 +112,6 @@ export default function Login() {
     setMode('forgot_email');
   }
 
-  // ── Step 1: send OTP ────────────────────────────────────────────────────────
   async function handleSendOtp(e) {
     e.preventDefault();
     if (!forgotEmail) return;
@@ -141,14 +137,12 @@ export default function Login() {
     }
   }
 
-  // ── Step 2: verify OTP ──────────────────────────────────────────────────────
   async function handleVerifyOtp(e) {
     e.preventDefault();
     if (otpValue.length < 6) { setStepError('Please enter the full 6-digit code.'); return; }
     setStepLoading(true);
     setStepError('');
     try {
-      // We just validate length/format here; the real check happens on password submit
       setNewPassword('');
       setConfirmPassword('');
       setMode('forgot_newpass');
@@ -159,7 +153,6 @@ export default function Login() {
     }
   }
 
-  // ── Step 3: set new password ────────────────────────────────────────────────
   async function handleSetPassword(e) {
     e.preventDefault();
     if (newPassword.length < 8) { setStepError('Password must be at least 8 characters.'); return; }
@@ -175,7 +168,6 @@ export default function Login() {
       setMode('forgot_done');
     } catch (e) {
       setStepError(e.message);
-      // If OTP was invalid/expired, send user back to OTP step
       if (e.message?.toLowerCase().includes('invalid') || e.message?.toLowerCase().includes('expired')) {
         setMode('forgot_otp');
       }
@@ -184,85 +176,65 @@ export default function Login() {
     }
   }
 
-  const brandGradient = 'linear-gradient(135deg, #D4AF37 0%, #b8952a 100%)';
+  const brandGradient = 'linear-gradient(135deg, #1B3A6E 0%, #2563EB 100%)';
 
   const BrandingPanel = () => (
     <div
       className="hidden lg:flex lg:w-[52%] flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0d1117 0%, #111827 60%, #0d1117 100%)', borderRight: '1px solid rgba(212,175,55,0.15)' }}
+      style={{ background: 'linear-gradient(160deg, #F0F7FF 0%, #FFFFFF 55%, #F0FDF4 100%)', borderRight: '1px solid #E5EDF5' }}
     >
-      {/* Decorative diagonal gold lines */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        backgroundImage: 'repeating-linear-gradient(135deg, rgba(212,175,55,0.03) 0px, rgba(212,175,55,0.03) 1px, transparent 1px, transparent 60px)',
-      }} />
-
-      {/* Gold glow orbs */}
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.08]" style={{ background: '#D4AF37', transform: 'translate(35%, -35%)', filter: 'blur(60px)' }} />
-      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.06]" style={{ background: '#D4AF37', transform: 'translate(-35%, 35%)', filter: 'blur(50px)' }} />
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.12]" style={{ background: '#3DB83F', transform: 'translate(35%, -35%)' }} />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.10]" style={{ background: '#2563EB', transform: 'translate(-35%, 35%)' }} />
+      <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-[0.05]" style={{ background: '#1B3A6E', transform: 'translate(-50%,-50%)' }} />
 
       <div className="relative z-10 flex flex-col items-center px-12 max-w-lg text-center">
-
-        {/* Logo with gold ring */}
-        <div className="mb-6 relative">
-          <div className="absolute inset-0 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #D4AF37 0%, transparent 70%)' }} />
-          <div className="w-28 h-28 rounded-full flex items-center justify-center relative"
-            style={{ background: 'rgba(212,175,55,0.08)', border: '1.5px solid rgba(212,175,55,0.3)' }}>
-            <img src="/image.png" alt="HumanVerse360 Logo" className="w-20 h-20 object-contain" style={{ filter: 'brightness(1.1) drop-shadow(0 0 12px rgba(212,175,55,0.4))' }} />
-          </div>
+        <div className="mb-5">
+          <img src="/image.png" alt="HumanVerse360 Logo" className="w-32 h-32 object-contain drop-shadow-md" />
         </div>
 
-        {/* Brand name */}
-        <div className="mb-2">
+        <div className="mb-1">
           <h1 className="text-[2.6rem] font-black tracking-tight leading-none select-none">
-            <span style={{ color: '#e5e7eb' }}>Human</span>
-            <span style={{ color: '#D4AF37' }}>Verse</span>
-            <span style={{ color: '#f9fafb' }}>360</span>
-            <span className="text-2xl font-bold align-baseline ml-0.5" style={{ color: '#D4AF37' }}>.com</span>
+            <span style={{ color: '#1B3A6E' }}>Human</span>
+            <span style={{ color: '#2563EB' }}>Verse</span>
+            <span style={{ color: '#3DB83F' }}>360</span>
+            <span className="text-2xl font-bold align-baseline ml-0.5" style={{ color: '#2563EB' }}>.com</span>
           </h1>
         </div>
 
-        {/* Tagline */}
         <div className="flex items-center gap-3 mb-7">
-          <div className="h-px flex-1" style={{ background: 'rgba(212,175,55,0.3)' }} />
-          <p className="text-[10px] font-bold tracking-[0.18em] uppercase whitespace-nowrap" style={{ color: '#D4AF37' }}>
+          <div className="h-px flex-1" style={{ background: '#CBD5E1' }} />
+          <p className="text-[10px] font-bold tracking-[0.18em] uppercase whitespace-nowrap" style={{ color: '#64748B' }}>
             HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.
           </p>
-          <div className="h-px flex-1" style={{ background: 'rgba(212,175,55,0.3)' }} />
+          <div className="h-px flex-1" style={{ background: '#CBD5E1' }} />
         </div>
 
-        {/* Description */}
-        <p className="text-sm leading-relaxed mb-6" style={{ color: '#9ca3af' }}>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: '#64748B' }}>
           A comprehensive cloud-based HR &amp; Payroll platform purpose-built for GCC companies.
           Manage your workforce, automate payroll, track leave, and ensure compliance — all from one
           intelligent platform.
         </p>
 
-        {/* Tagline card */}
-        <div className="w-full rounded-2xl px-5 py-4 mb-8 text-left"
-          style={{ background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.2)' }}>
-          <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+        <div className="w-full rounded-2xl px-5 py-4 mb-8 text-left shadow-sm" style={{ background: '#F8FAFC', border: '1px solid #E2EAF4' }}>
+          <p className="text-sm leading-relaxed" style={{ color: '#334155' }}>
             Empowering People. Streamlining Payroll.{' '}
-            <span className="font-bold" style={{ color: '#D4AF37' }}>Driving Success—Together.</span>
+            <span className="font-bold" style={{ color: '#3DB83F' }}>Driving Success—Together.</span>
           </p>
         </div>
 
-        {/* Feature badges */}
         <div className="flex flex-wrap justify-center gap-2">
           {['Employee Management', 'Payroll Processing', 'Leave Tracking', 'Document Expiry', 'Employee Portal', 'Indemnity Calculator'].map(f => (
-            <span key={f} className="px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.22)', color: '#D4AF37' }}>
+            <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium"
+              style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8' }}>
               {f}
             </span>
           ))}
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="absolute bottom-5 flex items-center gap-1.5 text-xs" style={{ color: '#4b5563' }}>
+      <div className="absolute bottom-5 flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
         <span>Developed by</span>
-        <a href="/about" className="font-medium transition-colors" style={{ color: '#6b7280' }}
-          onMouseEnter={e => e.currentTarget.style.color = '#D4AF37'}
-          onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}>
+        <a href="/about" className="font-medium transition-colors hover:text-slate-600" style={{ color: '#64748B' }}>
           Innovegic Consultancy &amp; IT Services Co W.L.L
         </a>
       </div>
@@ -270,34 +242,34 @@ export default function Login() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row" style={{ background: '#111827' }}>
+    <div className="min-h-screen flex flex-col lg:flex-row" style={{ background: '#F0F4F9' }}>
       <BrandingPanel />
 
-      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10" style={{ background: '#111827' }}>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10">
         {/* Mobile logo */}
         <div className="lg:hidden mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <img src="/image.png" alt="HumanVerse360" className="w-12 h-12 object-contain" style={{ filter: 'drop-shadow(0 0 8px rgba(212,175,55,0.4))' }} />
+            <img src="/image.png" alt="HumanVerse360" className="w-12 h-12 object-contain" />
             <h1 className="text-2xl font-black leading-none">
-              <span style={{ color: '#e5e7eb' }}>Human</span>
-              <span style={{ color: '#D4AF37' }}>Verse</span>
-              <span style={{ color: '#f9fafb' }}>360</span>
+              <span style={{ color: '#1B3A6E' }}>Human</span>
+              <span style={{ color: '#2563EB' }}>Verse</span>
+              <span style={{ color: '#3DB83F' }}>360</span>
             </h1>
           </div>
-          <p className="text-xs tracking-widest uppercase" style={{ color: '#6b7280' }}>HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.</p>
+          <p className="text-xs text-gray-400 tracking-widest uppercase">HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.</p>
         </div>
 
         <div className="w-full max-w-sm">
-          <div className="h-1 rounded-t-xl" style={{ background: 'linear-gradient(to right, #111827, #D4AF37 50%, #b8952a)' }} />
+          <div className="h-1 rounded-t-xl" style={{ background: 'linear-gradient(to right, #1B3A6E, #2563EB 50%, #3DB83F)' }} />
 
           {/* ── SIGN IN ── */}
           {mode === 'login' && (
-            <div className="rounded-b-2xl rounded-tr-2xl shadow-2xl p-8" style={{ background: '#1f2937', border: '1px solid rgba(212,175,55,0.15)', borderTop: 'none' }}>
-              <h2 className="text-2xl font-bold mb-1" style={{ color: '#f9fafb' }}>Welcome back</h2>
-              <p className="text-sm mb-7" style={{ color: '#6b7280' }}>Sign in to your company account</p>
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-xl p-8">
+              <h2 className="text-2xl font-bold mb-1" style={{ color: '#1B3A6E' }}>Welcome back</h2>
+              <p className="text-sm text-gray-400 mb-7">Sign in to your company account</p>
 
               {loginError && (
-                <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-700/50 rounded-xl mb-5 text-sm text-red-400">
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl mb-5 text-sm text-red-700">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />{loginError}
                 </div>
               )}
@@ -315,29 +287,29 @@ export default function Login() {
                         type={showPass ? 'text' : 'password'} placeholder="••••••••"
                         autoComplete="current-password" error={errors.password} className="pr-10" />
                       <button type="button" onClick={() => setShowPass(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" style={{ color: '#6b7280' }}>
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </FormField>
                   <div className="flex justify-end mt-1.5">
                     <button type="button" onClick={openForgot}
-                      className="text-xs font-semibold hover:underline transition-colors" style={{ color: '#D4AF37' }}>
+                      className="text-xs font-medium hover:underline transition-colors" style={{ color: '#2563EB' }}>
                       Forgot password?
                     </button>
                   </div>
                 </div>
 
                 <button type="submit" disabled={isSubmitting}
-                  className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
-                  style={{ background: brandGradient, color: '#111827' }}>
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: brandGradient }}>
                   {isSubmitting ? 'Signing in…' : 'Sign In'}
                 </button>
               </form>
 
-              <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid #374151' }}>
-                <p className="text-sm" style={{ color: '#6b7280' }}>New to HumanVerse360?{' '}
-                  <Link to="/register" className="font-semibold hover:underline" style={{ color: '#D4AF37' }}>Register your company</Link>
+              <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+                <p className="text-sm text-gray-500">New to HumanVerse360?{' '}
+                  <Link to="/register" className="font-semibold hover:underline" style={{ color: '#3DB83F' }}>Register your company</Link>
                 </p>
               </div>
             </div>
@@ -345,34 +317,33 @@ export default function Login() {
 
           {/* ── STEP 1: Enter email ── */}
           {mode === 'forgot_email' && (
-            <div className="rounded-b-2xl rounded-tr-2xl shadow-2xl p-8" style={{ background: '#1f2937', border: '1px solid rgba(212,175,55,0.15)', borderTop: 'none' }}>
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-xl p-8">
               <button type="button" onClick={() => setMode('login')}
-                className="flex items-center gap-1.5 text-sm mb-6 transition-colors" style={{ color: '#6b7280' }}>
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
                 <ArrowLeft className="w-4 h-4" />Back to sign in
               </button>
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: 'rgba(212,175,55,0.1)' }}>
-                <Mail className="w-6 h-6" style={{ color: '#D4AF37' }} />
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: '#EFF6FF' }}>
+                <Mail className="w-6 h-6" style={{ color: '#2563EB' }} />
               </div>
-              <h2 className="text-xl font-bold mb-1" style={{ color: '#f9fafb' }}>Reset your password</h2>
-              <p className="text-sm mb-6" style={{ color: '#6b7280' }}>Enter your work email and we'll send you a 6-digit verification code.</p>
+              <h2 className="text-xl font-bold mb-1" style={{ color: '#1B3A6E' }}>Reset your password</h2>
+              <p className="text-sm text-gray-400 mb-6">Enter your work email and we'll send you a 6-digit verification code.</p>
 
               {stepError && (
-                <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-700/50 rounded-xl mb-4 text-sm text-red-400">
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl mb-4 text-sm text-red-700">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />{stepError}
                 </div>
               )}
 
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#9ca3af' }}>Work Email</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Work Email</label>
                   <input type="email" required value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
                     placeholder="admin@company.com"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 transition"
-                    style={{ background: '#374151', border: '1px solid #4b5563', color: '#f9fafb' }} />
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
                 </div>
                 <button type="submit" disabled={stepLoading || !forgotEmail}
-                  className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
-                  style={{ background: brandGradient, color: '#111827' }}>
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: brandGradient }}>
                   {stepLoading ? 'Sending…' : 'Send Verification Code'}
                 </button>
               </form>
@@ -381,20 +352,20 @@ export default function Login() {
 
           {/* ── STEP 2: Enter OTP ── */}
           {mode === 'forgot_otp' && (
-            <div className="rounded-b-2xl rounded-tr-2xl shadow-2xl p-8" style={{ background: '#1f2937', border: '1px solid rgba(212,175,55,0.15)', borderTop: 'none' }}>
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-xl p-8">
               <button type="button" onClick={() => { setMode('forgot_email'); setStepError(''); }}
-                className="flex items-center gap-1.5 text-sm mb-6 transition-colors" style={{ color: '#6b7280' }}>
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
                 <ArrowLeft className="w-4 h-4" />Back
               </button>
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: 'rgba(212,175,55,0.1)' }}>
-                <ShieldCheck className="w-6 h-6" style={{ color: '#D4AF37' }} />
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: '#EFF6FF' }}>
+                <ShieldCheck className="w-6 h-6" style={{ color: '#2563EB' }} />
               </div>
-              <h2 className="text-xl font-bold mb-1" style={{ color: '#f9fafb' }}>Enter verification code</h2>
-              <p className="text-sm mb-1" style={{ color: '#6b7280' }}>We sent a 6-digit code to</p>
-              <p className="text-sm font-semibold mb-6" style={{ color: '#D4AF37' }}>{forgotEmail}</p>
+              <h2 className="text-xl font-bold mb-1" style={{ color: '#1B3A6E' }}>Enter verification code</h2>
+              <p className="text-sm text-gray-400 mb-1">We sent a 6-digit code to</p>
+              <p className="text-sm font-semibold mb-6" style={{ color: '#1B3A6E' }}>{forgotEmail}</p>
 
               {stepError && (
-                <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-700/50 rounded-xl mb-4 text-sm text-red-400">
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl mb-4 text-sm text-red-700">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />{stepError}
                 </div>
               )}
@@ -402,14 +373,14 @@ export default function Login() {
               <form onSubmit={handleVerifyOtp} className="space-y-5">
                 <OtpInput value={otpValue} onChange={v => { setOtpValue(v); setStepError(''); }} />
                 <button type="submit" disabled={stepLoading || otpValue.length < 6}
-                  className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
-                  style={{ background: brandGradient, color: '#111827' }}>
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: brandGradient }}>
                   {stepLoading ? 'Verifying…' : 'Verify Code'}
                 </button>
               </form>
 
               <button type="button" onClick={() => { setOtpValue(''); setStepError(''); handleSendOtp({ preventDefault: () => {} }); }}
-                className="w-full mt-3 py-2 text-xs transition-colors" style={{ color: '#6b7280' }}>
+                className="w-full mt-3 py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
                 Didn't receive it? Resend code
               </button>
             </div>
@@ -417,30 +388,29 @@ export default function Login() {
 
           {/* ── STEP 3: New password ── */}
           {mode === 'forgot_newpass' && (
-            <div className="rounded-b-2xl rounded-tr-2xl shadow-2xl p-8" style={{ background: '#1f2937', border: '1px solid rgba(212,175,55,0.15)', borderTop: 'none' }}>
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: 'rgba(212,175,55,0.1)' }}>
-                <KeyRound className="w-6 h-6" style={{ color: '#D4AF37' }} />
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-xl p-8">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mb-4" style={{ background: '#EFF6FF' }}>
+                <KeyRound className="w-6 h-6" style={{ color: '#2563EB' }} />
               </div>
-              <h2 className="text-xl font-bold mb-1" style={{ color: '#f9fafb' }}>Set new password</h2>
-              <p className="text-sm mb-6" style={{ color: '#6b7280' }}>Choose a strong password for your account.</p>
+              <h2 className="text-xl font-bold mb-1" style={{ color: '#1B3A6E' }}>Set new password</h2>
+              <p className="text-sm text-gray-400 mb-6">Choose a strong password for your account.</p>
 
               {stepError && (
-                <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-700/50 rounded-xl mb-4 text-sm text-red-400">
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl mb-4 text-sm text-red-700">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />{stepError}
                 </div>
               )}
 
               <form onSubmit={handleSetPassword} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#9ca3af' }}>New Password</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">New Password</label>
                   <div className="relative">
                     <input type={showNewPass ? 'text' : 'password'} required minLength={8}
                       value={newPassword} onChange={e => { setNewPassword(e.target.value); setStepError(''); }}
                       placeholder="At least 8 characters" autoComplete="new-password"
-                      className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 transition"
-                      style={{ background: '#374151', border: '1px solid #4b5563', color: '#f9fafb' }} />
+                      className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
                     <button type="button" onClick={() => setShowNewPass(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" style={{ color: '#6b7280' }}>
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                       {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -448,26 +418,25 @@ export default function Login() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#9ca3af' }}>Confirm Password</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Confirm Password</label>
                   <div className="relative">
                     <input type={showConfirmPass ? 'text' : 'password'} required
                       value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setStepError(''); }}
                       placeholder="Re-enter password" autoComplete="new-password"
-                      className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 transition"
-                      style={{ background: '#374151', border: '1px solid #4b5563', color: '#f9fafb' }} />
+                      className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
                     <button type="button" onClick={() => setShowConfirmPass(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" style={{ color: '#6b7280' }}>
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                       {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                   {confirmPassword && newPassword !== confirmPassword && (
-                    <p className="text-xs text-red-400 mt-1">Passwords do not match.</p>
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
                   )}
                 </div>
 
                 <button type="submit" disabled={stepLoading || !newPassword || !confirmPassword}
-                  className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
-                  style={{ background: brandGradient, color: '#111827' }}>
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: brandGradient }}>
                   {stepLoading ? 'Updating…' : 'Update Password'}
                 </button>
               </form>
@@ -476,22 +445,22 @@ export default function Login() {
 
           {/* ── DONE ── */}
           {mode === 'forgot_done' && (
-            <div className="rounded-b-2xl rounded-tr-2xl shadow-2xl p-8 text-center" style={{ background: '#1f2937', border: '1px solid rgba(212,175,55,0.15)', borderTop: 'none' }}>
-              <div className="flex items-center justify-center w-14 h-14 rounded-2xl mx-auto mb-4" style={{ background: 'rgba(212,175,55,0.1)' }}>
-                <CheckCircle2 className="w-7 h-7" style={{ color: '#D4AF37' }} />
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-xl p-8 text-center">
+              <div className="flex items-center justify-center w-14 h-14 rounded-2xl mx-auto mb-4" style={{ background: '#F0FDF4' }}>
+                <CheckCircle2 className="w-7 h-7" style={{ color: '#3DB83F' }} />
               </div>
-              <h2 className="text-xl font-bold mb-2" style={{ color: '#f9fafb' }}>Password updated!</h2>
-              <p className="text-sm mb-6" style={{ color: '#6b7280' }}>Your password has been changed successfully. You can now sign in with your new password.</p>
+              <h2 className="text-xl font-bold mb-2" style={{ color: '#1B3A6E' }}>Password updated!</h2>
+              <p className="text-sm text-gray-500 mb-6">Your password has been changed successfully. You can now sign in with your new password.</p>
               <button type="button" onClick={() => { setMode('login'); setForgotEmail(''); setOtpValue(''); setNewPassword(''); setConfirmPassword(''); }}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-[0.99]"
-                style={{ background: brandGradient, color: '#111827' }}>
+                className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                style={{ background: brandGradient }}>
                 Back to Sign In
               </button>
             </div>
           )}
 
-          <p className="lg:hidden text-center text-xs mt-5" style={{ color: '#4b5563' }}>
-            <a href="/about" className="transition-colors" style={{ color: '#6b7280' }}>
+          <p className="lg:hidden text-center text-xs text-gray-400 mt-5">
+            <a href="/about" className="hover:text-gray-600 transition-colors">
               Powered by Innovegic Consultancy &amp; IT Services Co W.L.L
             </a>
           </p>
