@@ -1,4 +1,4 @@
-import { differenceInDays, differenceInMonths, differenceInYears, parseISO } from 'date-fns';
+import { differenceInDays, differenceInMonths, differenceInYears, parseISO, getDaysInMonth } from 'date-fns';
 
 export function getServiceYears(joiningDate, endDate = new Date()) {
   const start = typeof joiningDate === 'string' ? parseISO(joiningDate) : joiningDate;
@@ -18,10 +18,24 @@ export function getServiceDays(joiningDate, endDate = new Date()) {
   return differenceInDays(end, start);
 }
 
+// Returns actual calendar days in the given month. date can be a Date or {year, month} (1-based month).
+export function getCalendarDaysInMonth(date) {
+  const d = date instanceof Date ? date : new Date(date.year, date.month - 1, 1);
+  return getDaysInMonth(d);
+}
+
+// Daily rate using actual calendar days of the reference month.
+// If no date provided, uses 30 as the Bahrain Labour Law standard for indemnity purposes.
+export function calculateDailyRate(salary, referenceDate) {
+  const days = referenceDate ? getCalendarDaysInMonth(referenceDate) : 30;
+  return salary / days;
+}
+
 export function calculateIndemnity(basicSalary, joiningDate, endDate, terminationType = 'Termination') {
   const totalMonths = getServiceMonths(joiningDate, endDate);
   const totalYears = totalMonths / 12;
-  const dailyRate = basicSalary / 26;
+  // BH Labour Law Art. 116 uses 30-day month standard for daily rate
+  const dailyRate = basicSalary / 30;
 
   if (totalYears < 1) return { amount: 0, breakdown: 'Less than 1 year – no indemnity' };
 
@@ -51,19 +65,30 @@ export function calculateAnnualLeaveAccrual(joiningDate, asOfDate = new Date()) 
   return (cappedMonths / 12) * 30;
 }
 
-export function calculateOvertimePay(basicSalary, overtimeHours, isHoliday = false) {
-  const hourlyRate = basicSalary / (26 * 8);
+export function calculateOvertimePay(basicSalary, overtimeHours, isHoliday = false, referenceDate) {
+  const daysInMonth = referenceDate ? getCalendarDaysInMonth(referenceDate) : 30;
+  const hourlyRate = basicSalary / (daysInMonth * 8);
   const multiplier = isHoliday ? 1.5 : 1.25;
   return hourlyRate * overtimeHours * multiplier;
 }
 
-export function calculateGOSI(basicSalary, type = 'employee') {
-  const rate = type === 'employee' ? 0.07 : 0.12;
-  return basicSalary * rate;
+// Bahraini GOSI rates (SIO – Social Insurance Organisation)
+// Pension: Employee 7% + Employer 12% | Unemployment: Employee 1% + Employer 1%
+export function calculateGOSIBahraini(basicSalary, type = 'employee') {
+  if (type === 'employee') return basicSalary * 0.08; // 7% pension + 1% unemployment
+  return basicSalary * 0.13; // 12% pension + 1% unemployment
 }
 
-export function calculateDailyRate(grossSalary, workingDays = 26) {
-  return grossSalary / workingDays;
+// Expat GOSI rates (Work Injury Insurance only)
+// Employee 1% + Employer 3%
+export function calculateGOSIExpat(basicSalary, type = 'employee') {
+  return basicSalary * (type === 'employee' ? 0.01 : 0.03);
+}
+
+// Unified GOSI entry point – nationality: 'Bahraini' | 'Expat'
+export function calculateGOSI(basicSalary, type = 'employee', nationality = 'Bahraini') {
+  if (nationality === 'Bahraini') return calculateGOSIBahraini(basicSalary, type);
+  return calculateGOSIExpat(basicSalary, type);
 }
 
 export function getDocumentStatus(expiryDate) {

@@ -3,7 +3,7 @@ import { Calculator, FileText, TrendingDown } from 'lucide-react';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { FormField, Select, Input } from '../../components/ui/Form';
-import { formatCurrency, formatDate, calculateIndemnity, getServiceYears, getServiceMonths } from '../../lib/calculations';
+import { formatCurrency, formatDate, calculateIndemnity, getServiceYears, getServiceMonths, getCalendarDaysInMonth } from '../../lib/calculations';
 import { differenceInDays, parseISO, format } from 'date-fns';
 
 export default function IndemnityPage() {
@@ -106,7 +106,7 @@ function IndemnityCalculator() {
               <div className="space-y-3 text-sm">
                 {[
                   ['Employee', `${selectedEmp?.first_name} ${selectedEmp?.last_name}`],
-                  ['Basic Salary (Daily Rate)', `${formatCurrency(result.basicSalary)} ÷ 26 = ${formatCurrency(result.basicSalary / 26)}/day`],
+                  ['Basic Salary (Daily Rate)', `${formatCurrency(result.basicSalary)} ÷ 30 = ${formatCurrency(result.basicSalary / 30)}/day`],
                   ['Total Service', `${result.years} years, ${result.months % 12} months (${result.days} days)`],
                   ['Termination Type', terminationType],
                   ['Formula Applied', result.breakdown],
@@ -156,8 +156,10 @@ function FinalSettlement() {
     const gross = (selectedEmp.basic_salary || 0) + (selectedEmp.housing_allowance || 0) +
       (selectedEmp.transport_allowance || 0) + (selectedEmp.food_allowance || 0) + (selectedEmp.other_allowances || 0);
     const { amount: indemnity, breakdown } = calculateIndemnity(basic, selectedEmp.joining_date, endDate, terminationType);
-    const dailyRate = gross / 26;
-    const leavePay = (basic / 26) * unusedLeave;
+    const endDateObj = parseISO(endDate);
+    const daysInMonth = getCalendarDaysInMonth(endDateObj);
+    const dailyRate = gross / daysInMonth;
+    const leavePay = (basic / daysInMonth) * unusedLeave;
     const noticePayDays = getServiceYears(selectedEmp.joining_date, endDate) >= 3 ? 30 : 14;
     const noticePay = dailyRate * noticePayDays;
     const totalPayable = indemnity + leavePay + parseFloat(pendingExpenses || 0) + noticePay;
@@ -310,12 +312,23 @@ function LaborLawRules() {
       ],
     },
     {
-      title: 'GOSI Contributions',
+      title: 'GOSI – Bahraini Nationals',
       items: [
-        'Applies to Bahraini nationals only',
-        'Employee contribution: 7% of basic salary',
-        'Employer contribution: 12% of basic salary',
-        'Based on basic salary, excludes allowances',
+        'Pension insurance: Employee 7% + Employer 12%',
+        'Unemployment insurance: Employee 1% + Employer 1%',
+        'Total: Employee 8% + Employer 13% of basic salary',
+        'Administered by SIO (Social Insurance Organisation)',
+        'Based on basic salary only, excludes allowances',
+      ],
+    },
+    {
+      title: 'GOSI – Expat Employees',
+      items: [
+        'Work injury insurance only',
+        'Employee contribution: 1% of basic salary',
+        'Employer contribution: 3% of basic salary',
+        'No pension or unemployment coverage for expats',
+        'Based on basic salary only, excludes allowances',
       ],
     },
   ];
