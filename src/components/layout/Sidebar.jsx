@@ -136,7 +136,7 @@ export function Sidebar() {
               }
             >
               <Crown className="w-4 h-4 flex-shrink-0" style={{ color: '#D4AF37' }} />
-              <span className="truncate" style={{ color: isActive => isActive ? undefined : '#D4AF37' }}>Subscription</span>
+              <span className="truncate" style={{ color: '#D4AF37' }}>Subscription</span>
             </NavLink>
           </div>
         )}
