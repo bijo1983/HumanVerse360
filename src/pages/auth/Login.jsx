@@ -189,51 +189,51 @@ export default function Login() {
   const BrandingPanel = () => (
     <div
       className="hidden lg:flex lg:w-[52%] flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0D2554 0%, #1B3A6E 55%, #0D3B20 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #F0F7FF 0%, #FFFFFF 55%, #F0FDF4 100%)', borderRight: '1px solid #E5EDF5' }}
     >
-      {/* Background circles */}
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.07]" style={{ background: '#3DB83F', transform: 'translate(30%, -30%)' }} />
-      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.07]" style={{ background: '#2563EB', transform: 'translate(-30%, 30%)' }} />
-      <div className="absolute top-1/2 left-1/2 w-[700px] h-[700px] rounded-full opacity-[0.03]" style={{ background: '#fff', transform: 'translate(-50%,-50%)' }} />
+      {/* Subtle decorative blobs */}
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.12]" style={{ background: '#3DB83F', transform: 'translate(35%, -35%)' }} />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.10]" style={{ background: '#2563EB', transform: 'translate(-35%, 35%)' }} />
+      <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-[0.05]" style={{ background: '#1B3A6E', transform: 'translate(-50%,-50%)' }} />
 
       <div className="relative z-10 flex flex-col items-center px-12 max-w-lg text-center">
 
-        {/* Logo icon */}
-        <div className="mb-5 drop-shadow-2xl">
-          <img src="/image.png" alt="HumanVerse360 Logo" className="w-28 h-28 object-contain" />
+        {/* Logo icon — fully visible on white */}
+        <div className="mb-5">
+          <img src="/image.png" alt="HumanVerse360 Logo" className="w-32 h-32 object-contain drop-shadow-md" />
         </div>
 
-        {/* Brand name typography */}
+        {/* Brand name typography — full brand colors on light bg */}
         <div className="mb-1">
           <h1 className="text-[2.6rem] font-black tracking-tight leading-none select-none">
-            <span style={{ color: '#ffffff' }}>Human</span>
-            <span style={{ color: '#7DC8FF' }}>Verse</span>
-            <span style={{ color: '#6EE7A0' }}>360</span>
-            <span className="text-2xl font-bold align-baseline ml-0.5" style={{ color: '#7DC8FF' }}>.com</span>
+            <span style={{ color: '#1B3A6E' }}>Human</span>
+            <span style={{ color: '#2563EB' }}>Verse</span>
+            <span style={{ color: '#3DB83F' }}>360</span>
+            <span className="text-2xl font-bold align-baseline ml-0.5" style={{ color: '#2563EB' }}>.com</span>
           </h1>
         </div>
 
         {/* Tagline with decorative lines */}
         <div className="flex items-center gap-3 mb-7">
-          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          <p className="text-[10px] font-bold tracking-[0.18em] uppercase whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>
+          <div className="h-px flex-1" style={{ background: '#CBD5E1' }} />
+          <p className="text-[10px] font-bold tracking-[0.18em] uppercase whitespace-nowrap" style={{ color: '#64748B' }}>
             HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.
           </p>
-          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.2)' }} />
+          <div className="h-px flex-1" style={{ background: '#CBD5E1' }} />
         </div>
 
         {/* Short description */}
-        <p className="text-sm leading-relaxed mb-6" style={{ color: 'rgba(255,255,255,0.62)' }}>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: '#64748B' }}>
           A comprehensive cloud-based HR &amp; Payroll platform purpose-built for GCC companies.
           Manage your workforce, automate payroll, track leave, and ensure compliance — all from one
           intelligent platform.
         </p>
 
         {/* Tagline card */}
-        <div className="w-full rounded-2xl px-5 py-4 mb-8 text-left" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
+        <div className="w-full rounded-2xl px-5 py-4 mb-8 text-left shadow-sm" style={{ background: '#F8FAFC', border: '1px solid #E2EAF4' }}>
+          <p className="text-sm leading-relaxed" style={{ color: '#334155' }}>
             Empowering People. Streamlining Payroll.{' '}
-            <span className="font-bold" style={{ color: '#6EE7A0' }}>Driving Success—Together.</span>
+            <span className="font-bold" style={{ color: '#3DB83F' }}>Driving Success—Together.</span>
           </p>
         </div>
 
@@ -241,7 +241,7 @@ export default function Login() {
         <div className="flex flex-wrap justify-center gap-2">
           {['Employee Management', 'Payroll Processing', 'Leave Tracking', 'Document Expiry', 'Employee Portal', 'Indemnity Calculator'].map(f => (
             <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.72)' }}>
+              style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8' }}>
               {f}
             </span>
           ))}
@@ -249,9 +249,9 @@ export default function Login() {
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-5 flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.28)' }}>
+      <div className="absolute bottom-5 flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
         <span>Developed by</span>
-        <a href="/about" className="font-medium transition-colors hover:text-white/60" style={{ color: 'rgba(255,255,255,0.38)' }}>
+        <a href="/about" className="font-medium transition-colors hover:text-slate-600" style={{ color: '#64748B' }}>
           Innovegic Consultancy &amp; IT Services Co W.L.L
         </a>
       </div>
