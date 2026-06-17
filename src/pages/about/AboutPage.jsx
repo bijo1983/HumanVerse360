@@ -1,8 +1,15 @@
 import { Link } from 'react-router-dom';
 import {
   Users, FileText, Calendar, DollarSign, Shield, Globe, CheckCircle,
-  ArrowRight, Mail, Phone, ExternalLink, Award, Lightbulb, Zap, Lock,
+  ArrowRight, ExternalLink, Award, Lightbulb, Zap, Lock,
 } from 'lucide-react';
+
+const INK = '#0F2747';      // deep navy, dominant
+const BLUE = '#2563EB';     // logo blue, accent only
+const GREEN = '#1E9B47';    // logo green, deepened slightly, accent only
+const SLATE = '#475569';    // body copy
+const HAIRLINE = '#E2E8F0'; // dividers
+const PAPER = '#FAFBFC';    // section background
 
 const FEATURES = [
   { icon: Users, title: 'Employee Management', description: 'Comprehensive employee records with custom fields, documents, education history, and dependents — all in one place.' },
@@ -20,105 +27,113 @@ const VALUES = [
   { icon: Award, title: 'Client-Centric Approach', description: 'Deep domain expertise and a collaborative approach to every project, startup to enterprise.' },
 ];
 
-const GCC_COUNTRIES = ['Bahrain', 'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'Kuwait', 'Oman'];
+const GCC_COUNTRIES = [
+  { code: 'BH', name: 'Bahrain' },
+  { code: 'SA', name: 'Saudi Arabia' },
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'QA', name: 'Qatar' },
+  { code: 'KW', name: 'Kuwait' },
+  { code: 'OM', name: 'Oman' },
+];
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ background: '#fff', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&display=swap');
+        .serif { font-family: 'Source Serif 4', Georgia, serif; }
+      `}</style>
 
       {/* Nav */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/login" className="flex items-center gap-2.5">
+      <header className="sticky top-0 z-50 border-b" style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(8px)', borderColor: HAIRLINE }}>
+        <div className="max-w-6xl mx-auto px-6 h-[72px] flex items-center justify-between">
+          <Link to="/login" className="flex items-center gap-3">
             <img src="/image.png" alt="HumanVerse360" className="w-9 h-9 object-contain" />
-            <span className="text-lg font-black">
-              <span style={{ color: '#1B3A6E' }}>Human</span>
-              <span style={{ color: '#2563EB' }}>Verse</span>
-              <span style={{ color: '#3DB83F' }}>360</span>
-              <span className="text-sm font-bold" style={{ color: '#2563EB' }}>.com</span>
+            <span className="text-lg font-bold tracking-tight">
+              <span style={{ color: INK }}>Human</span>
+              <span style={{ color: BLUE }}>Verse</span>
+              <span style={{ color: GREEN }}>360</span>
             </span>
           </Link>
           <Link to="/login"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #1B3A6E 0%, #2563EB 100%)' }}>
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold transition-colors"
+            style={{ background: INK, color: '#fff', borderRadius: '4px' }}>
             Sign In <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden py-24 px-6" style={{ background: 'linear-gradient(160deg, #0D2554 0%, #1B3A6E 55%, #0D3B20 100%)' }}>
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-[0.06]" style={{ background: '#3DB83F', transform: 'translate(30%, -30%)' }} />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full opacity-[0.06]" style={{ background: '#2563EB', transform: 'translate(-30%, 30%)' }} />
-
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <div className="flex justify-center mb-6">
-            <img src="/image.png" alt="HumanVerse360" className="w-24 h-24 object-contain drop-shadow-2xl" />
-          </div>
-          <h1 className="text-5xl font-black mb-3 leading-tight">
-            <span style={{ color: '#ffffff' }}>Human</span>
-            <span style={{ color: '#7DC8FF' }}>Verse</span>
-            <span style={{ color: '#6EE7A0' }}>360</span>
-            <span className="text-3xl font-bold" style={{ color: '#7DC8FF' }}>.com</span>
-          </h1>
-          <div className="flex items-center justify-center gap-4 mb-8">
-            <div className="h-px w-16" style={{ background: 'rgba(255,255,255,0.25)' }} />
-            <p className="text-xs font-bold tracking-[0.2em] uppercase" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.
+      <section className="relative px-6 py-28" style={{ background: INK }}>
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-px w-10" style={{ background: 'rgba(255,255,255,0.25)' }} />
+            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              HR &amp; Payroll Platform for the GCC
             </p>
-            <div className="h-px w-16" style={{ background: 'rgba(255,255,255,0.25)' }} />
           </div>
-          <p className="text-xl leading-relaxed mb-4 max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.8)' }}>
-            A next-generation HR &amp; Payroll management platform purpose-built for GCC companies.
+
+          <h1 className="serif text-[2.75rem] sm:text-6xl font-semibold leading-[1.08] mb-7 max-w-3xl" style={{ color: '#fff' }}>
+            HR &amp; payroll infrastructure, built for GCC compliance.
+          </h1>
+
+          <p className="text-lg leading-relaxed mb-12 max-w-2xl" style={{ color: 'rgba(255,255,255,0.68)' }}>
+            HumanVerse360 brings employee records, payroll, leave, and statutory compliance into a single
+            system of record — purpose-built for businesses operating across the Gulf.
           </p>
-          <p className="text-base leading-relaxed mb-10 max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.58)' }}>
-            Empowering People. Streamlining Payroll.{' '}
-            <span className="font-semibold" style={{ color: '#6EE7A0' }}>Driving Success—Together.</span>
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 mb-10">
-            {GCC_COUNTRIES.map(c => (
-              <span key={c} className="px-3 py-1.5 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}>
-                {c}
-              </span>
-            ))}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+
+          <div className="flex flex-col sm:flex-row gap-3 mb-16">
             <Link to="/register"
-              className="px-7 py-3.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.99]"
-              style={{ background: 'linear-gradient(135deg, #3DB83F 0%, #22c55e 100%)', color: '#fff' }}>
+              className="px-7 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90 text-center"
+              style={{ background: GREEN, color: '#fff', borderRadius: '4px' }}>
               Register Your Company
             </Link>
             <Link to="/login"
-              className="px-7 py-3.5 rounded-xl font-semibold text-sm transition-all"
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.9)' }}>
+              className="px-7 py-3.5 text-sm font-semibold transition-colors text-center"
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.9)', borderRadius: '4px' }}>
               Sign In
             </Link>
+          </div>
+
+          {/* Compliance ledger strip — signature element */}
+          <div className="border-t pt-6" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+            <p className="text-[11px] font-semibold tracking-[0.14em] uppercase mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              Regulatory coverage across six jurisdictions
+            </p>
+            <div className="flex flex-wrap gap-x-8 gap-y-3">
+              {GCC_COUNTRIES.map(c => (
+                <div key={c.code} className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold tracking-wider px-1.5 py-0.5"
+                    style={{ color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '3px', fontFamily: 'monospace' }}>
+                    {c.code}
+                  </span>
+                  <span className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{c.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* What is HumanVerse360 */}
-      <section className="py-20 px-6 bg-white">
+      <section className="py-24 px-6" style={{ background: '#fff' }}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-4" style={{ background: '#EFF6FF', color: '#2563EB' }}>About the Platform</span>
-            <h2 className="text-3xl font-bold mb-4" style={{ color: '#1B3A6E' }}>Everything Your HR Team Needs</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
-              HumanVerse360 is the latest product from Innovegic Consultancy &amp; IT Services Co W.L.L —
-              an all-in-one cloud platform that eliminates HR complexity for businesses across the GCC.
-              From onboarding to payroll to self-service, we've got every touchpoint covered.
+          <div className="max-w-2xl mb-16">
+            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-3" style={{ color: BLUE }}>About the Platform</p>
+            <h2 className="serif text-3xl font-semibold mb-5" style={{ color: INK }}>Everything your HR team needs, in one record</h2>
+            <p className="leading-relaxed" style={{ color: SLATE }}>
+              HumanVerse360 is the flagship product of Innovegic Consultancy &amp; IT Services Co W.L.L —
+              a cloud platform that consolidates onboarding, payroll, leave, and self-service into a single
+              system, built for the realities of running HR across the Gulf.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px" style={{ background: HAIRLINE }}>
             {FEATURES.map(f => (
-              <div key={f.title} className="group p-6 rounded-2xl border border-gray-100 hover:border-blue-100 hover:shadow-lg transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors" style={{ background: '#EFF6FF' }}>
-                  <f.icon className="w-5 h-5" style={{ color: '#2563EB' }} />
-                </div>
-                <h3 className="font-semibold mb-2" style={{ color: '#1B3A6E' }}>{f.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{f.description}</p>
+              <div key={f.title} className="p-7 bg-white">
+                <f.icon className="w-5 h-5 mb-5" style={{ color: BLUE }} strokeWidth={1.75} />
+                <h3 className="font-semibold mb-2" style={{ color: INK }}>{f.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: SLATE }}>{f.description}</p>
               </div>
             ))}
           </div>
@@ -126,18 +141,18 @@ export default function AboutPage() {
       </section>
 
       {/* Why HumanVerse360 */}
-      <section className="py-20 px-6" style={{ background: '#F8FAFC' }}>
+      <section className="py-24 px-6" style={{ background: PAPER, borderTop: `1px solid ${HAIRLINE}`, borderBottom: `1px solid ${HAIRLINE}` }}>
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
             <div>
-              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-4" style={{ background: '#F0FDF4', color: '#3DB83F' }}>Why HumanVerse360</span>
-              <h2 className="text-3xl font-bold mb-5" style={{ color: '#1B3A6E' }}>Built Specifically for GCC Businesses</h2>
-              <p className="text-gray-500 leading-relaxed mb-6">
+              <p className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-3" style={{ color: GREEN }}>Why HumanVerse360</p>
+              <h2 className="serif text-3xl font-semibold mb-6" style={{ color: INK }}>Built specifically for GCC businesses</h2>
+              <p className="leading-relaxed mb-8" style={{ color: SLATE }}>
                 HumanVerse360 was designed from the ground up with GCC regulatory requirements in mind.
                 From GOSI and GPSSA compliance to indemnity calculations under local labor laws,
                 the platform handles the complexities so your team doesn't have to.
               </p>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[
                   'Multi-country GCC support with country-specific ID formats',
                   'Role-based access control — Admin, IT Admin, HR, Manager, Viewer',
@@ -146,26 +161,26 @@ export default function AboutPage() {
                   'Secure document storage with expiry alerts',
                   'Full audit trail and data export capabilities',
                 ].map(item => (
-                  <div key={item} className="flex items-start gap-2.5">
-                    <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#3DB83F' }} />
-                    <span className="text-sm text-gray-600">{item}</span>
+                  <div key={item} className="flex items-start gap-3">
+                    <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: GREEN }} strokeWidth={2} />
+                    <span className="text-sm" style={{ color: SLATE }}>{item}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Stats block */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 content-start">
               {[
                 { value: '6', unit: 'GCC Countries', desc: 'Bahrain, Saudi Arabia, UAE, Qatar, Kuwait & Oman' },
                 { value: '5', unit: 'User Roles', desc: 'Admin, IT Admin, Manager, HR, Viewer' },
                 { value: '∞', unit: 'Employees', desc: 'Scale from 10 to thousands on our Enterprise plan' },
                 { value: '360°', unit: 'HR Coverage', desc: 'From hire to retire, every step covered' },
               ].map(s => (
-                <div key={s.unit} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <p className="text-4xl font-black mb-1" style={{ color: '#1B3A6E' }}>{s.value}</p>
-                  <p className="text-sm font-semibold mb-1" style={{ color: '#2563EB' }}>{s.unit}</p>
-                  <p className="text-xs text-gray-400 leading-snug">{s.desc}</p>
+                <div key={s.unit} className="bg-white p-6" style={{ border: `1px solid ${HAIRLINE}` }}>
+                  <p className="serif text-4xl font-semibold mb-1" style={{ color: INK }}>{s.value}</p>
+                  <p className="text-sm font-semibold mb-1" style={{ color: BLUE }}>{s.unit}</p>
+                  <p className="text-xs leading-snug" style={{ color: '#94A3B8' }}>{s.desc}</p>
                 </div>
               ))}
             </div>
@@ -174,46 +189,44 @@ export default function AboutPage() {
       </section>
 
       {/* About Innovegic */}
-      <section className="py-20 px-6 bg-white">
+      <section className="py-24 px-6 bg-white">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-4" style={{ background: '#FEF9C3', color: '#854D0E' }}>The Company Behind It</span>
-            <h2 className="text-3xl font-bold mb-4" style={{ color: '#1B3A6E' }}>Innovegic Consultancy &amp; IT Services Co W.L.L</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
-              HumanVerse360 is the latest flagship product of Innovegic — a technology company
-              founded on a passion for building intelligent software that drives real business outcomes.
+          <div className="max-w-2xl mb-14">
+            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-3" style={{ color: '#B45309' }}>The Company Behind It</p>
+            <h2 className="serif text-3xl font-semibold mb-5" style={{ color: INK }}>Innovegic Consultancy &amp; IT Services Co W.L.L</h2>
+            <p className="leading-relaxed" style={{ color: SLATE }}>
+              HumanVerse360 is the flagship product of Innovegic — a technology company founded on a
+              passion for building intelligent software that drives real business outcomes.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start mb-14">
-            <div className="space-y-5">
-              <div className="p-6 rounded-2xl border border-gray-100 bg-gray-50">
-                <h3 className="font-semibold text-lg mb-3" style={{ color: '#1B3A6E' }}>Who We Are</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+            <div className="space-y-px" style={{ background: HAIRLINE }}>
+              <div className="p-7 bg-white">
+                <h3 className="font-semibold text-base mb-3" style={{ color: INK }}>Who We Are</h3>
+                <p className="text-sm leading-relaxed" style={{ color: SLATE }}>
                   At Innovegic, we specialize in delivering cutting-edge software solutions and strategic
                   IT consultancy that drive business success. We help organizations streamline operations,
                   enhance efficiency, and scale confidently in the digital age.
                 </p>
               </div>
-              <div className="p-6 rounded-2xl border border-gray-100 bg-gray-50">
-                <h3 className="font-semibold text-lg mb-3" style={{ color: '#1B3A6E' }}>Our Mission</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  To design intelligent, scalable software tailored to unique business needs,
-                  with expert consultancy that ensures seamless digital transformation and long-term success.
-                  Whether you're a startup or an enterprise, we tailor solutions that are robust, scalable, and future-ready.
+              <div className="p-7 bg-white">
+                <h3 className="font-semibold text-base mb-3" style={{ color: INK }}>Our Mission</h3>
+                <p className="text-sm leading-relaxed" style={{ color: SLATE }}>
+                  To design intelligent, scalable software tailored to unique business needs, with expert
+                  consultancy that ensures seamless digital transformation and long-term success. Whether
+                  you're a startup or an enterprise, we tailor solutions that are robust, scalable, and future-ready.
                 </p>
               </div>
             </div>
             <div>
-              <h3 className="font-semibold text-lg mb-5" style={{ color: '#1B3A6E' }}>Our Core Values</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <h3 className="font-semibold text-base mb-5" style={{ color: INK }}>Our Core Values</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-px" style={{ background: HAIRLINE }}>
                 {VALUES.map(v => (
-                  <div key={v.title} className="p-4 rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: '#EFF6FF' }}>
-                      <v.icon className="w-4 h-4" style={{ color: '#2563EB' }} />
-                    </div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: '#1B3A6E' }}>{v.title}</p>
-                    <p className="text-xs text-gray-500 leading-snug">{v.description}</p>
+                  <div key={v.title} className="p-5 bg-white">
+                    <v.icon className="w-4 h-4 mb-3" style={{ color: BLUE }} strokeWidth={1.75} />
+                    <p className="text-sm font-semibold mb-1" style={{ color: INK }}>{v.title}</p>
+                    <p className="text-xs leading-snug" style={{ color: SLATE }}>{v.description}</p>
                   </div>
                 ))}
               </div>
@@ -221,17 +234,18 @@ export default function AboutPage() {
           </div>
 
           {/* Services */}
-          <div className="rounded-2xl p-8" style={{ background: 'linear-gradient(135deg, #F0F7FF 0%, #F0FDF4 100%)', border: '1px solid #E0EEFF' }}>
-            <h3 className="font-semibold text-lg mb-5 text-center" style={{ color: '#1B3A6E' }}>What Innovegic Offers</h3>
-            <div className="flex flex-wrap justify-center gap-3">
+          <div className="p-10" style={{ background: PAPER, border: `1px solid ${HAIRLINE}` }}>
+            <h3 className="font-semibold text-base mb-6 text-center" style={{ color: INK }}>What Innovegic Offers</h3>
+            <div className="flex flex-wrap justify-center gap-2.5 mb-7">
               {['Web Design', 'Software Development', 'UI/UX Design', 'IT Consultancy', 'Graphic Design', 'SEO & Online Marketing', 'Digital Transformation', 'Custom Software'].map(s => (
-                <span key={s} className="px-4 py-2 rounded-full text-xs font-medium bg-white shadow-sm border border-blue-100" style={{ color: '#1B3A6E' }}>{s}</span>
+                <span key={s} className="px-4 py-2 text-xs font-medium bg-white"
+                  style={{ color: INK, border: `1px solid ${HAIRLINE}`, borderRadius: '3px' }}>{s}</span>
               ))}
             </div>
-            <div className="text-center mt-6">
+            <div className="text-center">
               <a href="https://www.innovegicit.com" target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:underline"
-                style={{ color: '#2563EB' }}>
+                style={{ color: BLUE }}>
                 Visit innovegicit.com <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
@@ -240,20 +254,21 @@ export default function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-6" style={{ background: 'linear-gradient(135deg, #1B3A6E 0%, #2563EB 100%)' }}>
+      <section className="py-24 px-6" style={{ background: INK }}>
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Ready to Transform Your HR Operations?</h2>
-          <p className="text-white/70 mb-8 leading-relaxed">
+          <h2 className="serif text-3xl font-semibold text-white mb-5">Ready to transform your HR operations?</h2>
+          <p className="mb-10 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
             Join businesses across the GCC who trust HumanVerse360 to manage their most important asset — their people.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/register"
-              className="px-8 py-3.5 rounded-xl font-semibold text-sm bg-white transition-all hover:bg-gray-50"
-              style={{ color: '#1B3A6E' }}>
+              className="px-8 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: GREEN, color: '#fff', borderRadius: '4px' }}>
               Get Started Free
             </Link>
             <Link to="/login"
-              className="px-8 py-3.5 rounded-xl font-semibold text-sm transition-all border border-white/30 text-white hover:bg-white/10">
+              className="px-8 py-3.5 text-sm font-semibold transition-colors"
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.9)', borderRadius: '4px' }}>
               Sign In to Your Account
             </Link>
           </div>
@@ -261,24 +276,24 @@ export default function AboutPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 bg-gray-900 text-center">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-center gap-2.5 mb-4">
+      <footer className="py-12 px-6" style={{ background: '#081830' }}>
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="flex items-center justify-center gap-2.5 mb-5">
             <img src="/image.png" alt="HumanVerse360" className="w-7 h-7 object-contain opacity-80" />
-            <span className="font-black text-base">
+            <span className="font-bold text-base">
               <span className="text-white">Human</span>
               <span style={{ color: '#7DC8FF' }}>Verse</span>
               <span style={{ color: '#6EE7A0' }}>360</span>
-              <span className="text-sm font-bold" style={{ color: '#7DC8FF' }}>.com</span>
             </span>
           </div>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
             A product of{' '}
-            <a href="https://www.innovegicit.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-gray-200 transition-colors">
+            <a href="https://www.innovegicit.com" target="_blank" rel="noopener noreferrer"
+              className="hover:text-white transition-colors" style={{ color: 'rgba(255,255,255,0.6)' }}>
               Innovegic Consultancy &amp; IT Services Co W.L.L
             </a>
           </p>
-          <p className="text-xs text-gray-600">
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
             &copy; {new Date().getFullYear()} HumanVerse360. All rights reserved.
           </p>
         </div>
