@@ -189,32 +189,72 @@ export default function Login() {
   const BrandingPanel = () => (
     <div
       className="hidden lg:flex lg:w-[52%] flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0D2554 0%, #1B3A6E 55%, #1A5C30 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #0D2554 0%, #1B3A6E 55%, #0D3B20 100%)' }}
     >
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.06]" style={{ background: '#3DB83F', transform: 'translate(30%, -30%)' }} />
-      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.06]" style={{ background: '#2563EB', transform: 'translate(-30%, 30%)' }} />
-      <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: '#fff', transform: 'translate(-50%,-50%)' }} />
+      {/* Background circles */}
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.07]" style={{ background: '#3DB83F', transform: 'translate(30%, -30%)' }} />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-[0.07]" style={{ background: '#2563EB', transform: 'translate(-30%, 30%)' }} />
+      <div className="absolute top-1/2 left-1/2 w-[700px] h-[700px] rounded-full opacity-[0.03]" style={{ background: '#fff', transform: 'translate(-50%,-50%)' }} />
+
       <div className="relative z-10 flex flex-col items-center px-12 max-w-lg text-center">
-        <div className="bg-white rounded-3xl p-6 shadow-2xl mb-8 inline-block">
-          <img src="/ChatGPT_Image_Jun_16,_2026,_01_56_49_PM.png" alt="HumanVerse360" className="w-56 h-auto" />
+
+        {/* Logo icon */}
+        <div className="mb-5 drop-shadow-2xl">
+          <img src="/image.png" alt="HumanVerse360 Logo" className="w-28 h-28 object-contain" />
         </div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.25)' }} />
-          <p className="text-xs font-semibold tracking-widest text-white/60 uppercase whitespace-nowrap">HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.</p>
-          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.25)' }} />
+
+        {/* Brand name typography */}
+        <div className="mb-1">
+          <h1 className="text-[2.6rem] font-black tracking-tight leading-none select-none">
+            <span style={{ color: '#ffffff' }}>Human</span>
+            <span style={{ color: '#7DC8FF' }}>Verse</span>
+            <span style={{ color: '#6EE7A0' }}>360</span>
+            <span className="text-2xl font-bold align-baseline ml-0.5" style={{ color: '#7DC8FF' }}>.com</span>
+          </h1>
         </div>
-        <p className="text-white/70 text-base leading-relaxed mt-2">
-          Empowering People. Streamlining Payroll.{' '}
-          <span className="font-semibold" style={{ color: '#3DB83F' }}>Driving Success—Together.</span>
+
+        {/* Tagline with decorative lines */}
+        <div className="flex items-center gap-3 mb-7">
+          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.2)' }} />
+          <p className="text-[10px] font-bold tracking-[0.18em] uppercase whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.
+          </p>
+          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.2)' }} />
+        </div>
+
+        {/* Short description */}
+        <p className="text-sm leading-relaxed mb-6" style={{ color: 'rgba(255,255,255,0.62)' }}>
+          A comprehensive cloud-based HR &amp; Payroll platform purpose-built for GCC companies.
+          Manage your workforce, automate payroll, track leave, and ensure compliance — all from one
+          intelligent platform.
         </p>
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
-          {['Employee Management', 'Payroll Processing', 'Leave Tracking', 'Document Expiry', 'Indemnity Calculator'].map(f => (
-            <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium text-white/80"
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}>{f}</span>
+
+        {/* Tagline card */}
+        <div className="w-full rounded-2xl px-5 py-4 mb-8 text-left" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
+            Empowering People. Streamlining Payroll.{' '}
+            <span className="font-bold" style={{ color: '#6EE7A0' }}>Driving Success—Together.</span>
+          </p>
+        </div>
+
+        {/* Feature badges */}
+        <div className="flex flex-wrap justify-center gap-2">
+          {['Employee Management', 'Payroll Processing', 'Leave Tracking', 'Document Expiry', 'Employee Portal', 'Indemnity Calculator'].map(f => (
+            <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.72)' }}>
+              {f}
+            </span>
           ))}
         </div>
       </div>
-      <p className="absolute bottom-6 text-xs text-white/30 text-center px-8">Powered by Innovegic Consultancy And IT Services Co W.L.L</p>
+
+      {/* Footer */}
+      <div className="absolute bottom-5 flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.28)' }}>
+        <span>Developed by</span>
+        <a href="/about" className="font-medium transition-colors hover:text-white/60" style={{ color: 'rgba(255,255,255,0.38)' }}>
+          Innovegic Consultancy &amp; IT Services Co W.L.L
+        </a>
+      </div>
     </div>
   );
 
@@ -225,8 +265,15 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10">
         {/* Mobile logo */}
         <div className="lg:hidden mb-8 text-center">
-          <img src="/ChatGPT_Image_Jun_16,_2026,_01_56_49_PM.png" alt="HumanVerse360" className="w-44 mx-auto" />
-          <p className="text-xs text-gray-400 mt-2 tracking-widest uppercase">HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.</p>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <img src="/image.png" alt="HumanVerse360" className="w-12 h-12 object-contain" />
+            <h1 className="text-2xl font-black leading-none">
+              <span style={{ color: '#1B3A6E' }}>Human</span>
+              <span style={{ color: '#2563EB' }}>Verse</span>
+              <span style={{ color: '#3DB83F' }}>360</span>
+            </h1>
+          </div>
+          <p className="text-xs text-gray-400 tracking-widest uppercase">HR &amp; PAYROLL. SIMPLIFIED. INTELLIGENT. SECURE.</p>
         </div>
 
         <div className="w-full max-w-sm">
@@ -430,7 +477,9 @@ export default function Login() {
           )}
 
           <p className="lg:hidden text-center text-xs text-gray-400 mt-5">
-            Powered by Innovegic Consultancy And IT Services Co W.L.L
+            <a href="/about" className="hover:text-gray-600 transition-colors">
+              Powered by Innovegic Consultancy &amp; IT Services Co W.L.L
+            </a>
           </p>
         </div>
       </div>

@@ -21,6 +21,7 @@ import AcceptInvite from './pages/auth/AcceptInvite';
 import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import AdminPage from './pages/admin/AdminPage';
 import PortalApp from './pages/portal/PortalApp';
+import AboutPage from './pages/about/AboutPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -65,6 +66,8 @@ function AppRoutes() {
     <Routes>
       {/* Employee portal — standalone, uses separate auth client */}
       <Route path="/portal/:slug/*" element={<PortalApp />} />
+
+      <Route path="/about" element={<AboutPage />} />
 
       <Route path="/accept-invite/:token" element={<AcceptInvite />} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
