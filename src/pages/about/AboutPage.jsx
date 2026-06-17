@@ -4,9 +4,9 @@ import {
   ArrowRight, ExternalLink, Award, Lightbulb, Zap, Lock,
 } from 'lucide-react';
 
-const INK = '#0F2747';      // deep navy, dominant
-const BLUE = '#2563EB';     // logo blue, accent only
-const GREEN = '#1E9B47';    // logo green, deepened slightly, accent only
+const INK = '#0F2747';      // deep navy, used as text/dark accents now
+const BLUE = '#2563EB';     // logo blue, accent
+const GREEN = '#1E9B47';    // logo green, deepened slightly, accent
 const SLATE = '#475569';    // body copy
 const HAIRLINE = '#E2E8F0'; // dividers
 const PAPER = '#FAFBFC';    // section background
@@ -64,25 +64,36 @@ export default function AboutPage() {
       </header>
 
       {/* Hero */}
-      <section className="relative px-6 py-28" style={{ background: INK }}>
-        <div className="relative z-10 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-px w-10" style={{ background: 'rgba(255,255,255,0.25)' }} />
-            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase" style={{ color: 'rgba(255,255,255,0.55)' }}>
+      <section className="relative px-6 py-24 overflow-hidden" style={{
+        background: 'linear-gradient(165deg, #E4EBF5 0%, #EEF2F9 45%, #F6F8FB 100%)',
+      }}>
+        {/* soft curved highlight, echoes reference */}
+        <div className="absolute -top-32 -right-24 w-[480px] h-[480px] rounded-full opacity-60"
+          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%)' }} />
+        <div className="absolute top-10 right-0 w-[360px] h-[360px] rounded-full opacity-50"
+          style={{ background: 'radial-gradient(circle, #DCE6F4 0%, rgba(220,230,244,0) 70%)' }} />
+
+        <div className="relative z-10 max-w-5xl mx-auto text-center">
+          <img src="/image.png" alt="HumanVerse360" className="w-24 h-24 object-contain mx-auto mb-8" />
+
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="h-px w-10" style={{ background: 'rgba(15,39,71,0.18)' }} />
+            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase" style={{ color: SLATE }}>
               HR &amp; Payroll Platform for the GCC
             </p>
+            <div className="h-px w-10" style={{ background: 'rgba(15,39,71,0.18)' }} />
           </div>
 
-          <h1 className="serif text-[2.75rem] sm:text-6xl font-semibold leading-[1.08] mb-7 max-w-3xl" style={{ color: '#fff' }}>
+          <h1 className="serif text-[2.75rem] sm:text-6xl font-semibold leading-[1.08] mb-7 max-w-3xl mx-auto" style={{ color: INK }}>
             HR &amp; payroll infrastructure, built for GCC compliance.
           </h1>
 
-          <p className="text-lg leading-relaxed mb-12 max-w-2xl" style={{ color: 'rgba(255,255,255,0.68)' }}>
+          <p className="text-lg leading-relaxed mb-12 max-w-2xl mx-auto" style={{ color: SLATE }}>
             HumanVerse360 brings employee records, payroll, leave, and statutory compliance into a single
             system of record — purpose-built for businesses operating across the Gulf.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 mb-16">
+          <div className="flex flex-col sm:flex-row gap-3 mb-16 justify-center">
             <Link to="/register"
               className="px-7 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90 text-center"
               style={{ background: GREEN, color: '#fff', borderRadius: '4px' }}>
@@ -90,24 +101,24 @@ export default function AboutPage() {
             </Link>
             <Link to="/login"
               className="px-7 py-3.5 text-sm font-semibold transition-colors text-center"
-              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.9)', borderRadius: '4px' }}>
+              style={{ background: 'transparent', border: `1px solid ${BLUE}`, color: BLUE, borderRadius: '4px' }}>
               Sign In
             </Link>
           </div>
 
           {/* Compliance ledger strip — signature element */}
-          <div className="border-t pt-6" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
-            <p className="text-[11px] font-semibold tracking-[0.14em] uppercase mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <div className="border-t pt-6 text-left" style={{ borderColor: 'rgba(15,39,71,0.12)' }}>
+            <p className="text-[11px] font-semibold tracking-[0.14em] uppercase mb-4 text-center" style={{ color: '#94A3B8' }}>
               Regulatory coverage across six jurisdictions
             </p>
-            <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <div className="flex flex-wrap gap-x-8 gap-y-3 justify-center">
               {GCC_COUNTRIES.map(c => (
                 <div key={c.code} className="flex items-center gap-2.5">
                   <span className="text-xs font-bold tracking-wider px-1.5 py-0.5"
-                    style={{ color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '3px', fontFamily: 'monospace' }}>
+                    style={{ color: BLUE, border: `1px solid ${BLUE}`, borderRadius: '3px', fontFamily: 'monospace' }}>
                     {c.code}
                   </span>
-                  <span className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{c.name}</span>
+                  <span className="text-sm" style={{ color: SLATE }}>{c.name}</span>
                 </div>
               ))}
             </div>
@@ -254,7 +265,7 @@ export default function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 px-6" style={{ background: INK }}>
+      <section className="py-24 px-6" style={{ background: `linear-gradient(135deg, ${BLUE} 0%, ${GREEN} 100%)` }}>
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="serif text-3xl font-semibold text-white mb-5">Ready to transform your HR operations?</h2>
           <p className="mb-10 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
@@ -263,12 +274,12 @@ export default function AboutPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/register"
               className="px-8 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90"
-              style={{ background: GREEN, color: '#fff', borderRadius: '4px' }}>
+              style={{ background: '#fff', color: INK, borderRadius: '4px' }}>
               Get Started Free
             </Link>
             <Link to="/login"
               className="px-8 py-3.5 text-sm font-semibold transition-colors"
-              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.9)', borderRadius: '4px' }}>
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', borderRadius: '4px' }}>
               Sign In to Your Account
             </Link>
           </div>
@@ -276,7 +287,7 @@ export default function AboutPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6" style={{ background: '#081830' }}>
+      <footer className="py-12 px-6" style={{ background: `linear-gradient(135deg, #0B1E3A 0%, #0C2B1C 100%)` }}>
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex items-center justify-center gap-2.5 mb-5">
             <img src="/image.png" alt="HumanVerse360" className="w-7 h-7 object-contain opacity-80" />
