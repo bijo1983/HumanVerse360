@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, Calendar, DollarSign, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Calendar, DollarSign, AlertTriangle, EyeOff } from 'lucide-react';
 import { useEmployee } from '../../hooks/useEmployees';
 import { useLeaveBalances } from '../../hooks/useLeave';
 import { useDocuments } from '../../hooks/useDocuments';
@@ -12,7 +12,7 @@ import EmployeeForm from './EmployeeForm';
 
 export default function EmployeeDetail() {
   const { id } = useParams();
-  const { companyId } = useAuth();
+  const { companyId, showSalary } = useAuth();
   const [showEdit, setShowEdit] = useState(false);
   const { data: emp, isLoading } = useEmployee(id);
   const { data: balances = [] } = useLeaveBalances(id, new Date().getFullYear(), companyId);
@@ -76,6 +76,7 @@ export default function EmployeeDetail() {
         {/* Right Side */}
         <div className="lg:col-span-2 space-y-4">
           {/* Salary */}
+          {showSalary ? (
           <div className="card p-5">
             <h3 className="section-title mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-accent-500" /> Salary Details</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -97,6 +98,12 @@ export default function EmployeeDetail() {
               </div>
             </div>
           </div>
+          ) : (
+          <div className="card p-5 flex items-center gap-3 text-secondary-400">
+            <EyeOff className="w-4 h-4 flex-shrink-0" />
+            <p className="text-sm">Salary details are restricted for your role.</p>
+          </div>
+          )}
 
           {/* Leave Balances */}
           <div className="card p-5">

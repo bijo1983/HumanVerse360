@@ -17,6 +17,7 @@ import ESSPage from './pages/ess/ESSPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
+import AcceptInvite from './pages/auth/AcceptInvite';
 import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import AdminPage from './pages/admin/AdminPage';
 import PortalApp from './pages/portal/PortalApp';
@@ -65,6 +66,7 @@ function AppRoutes() {
       {/* Employee portal — standalone, uses separate auth client */}
       <Route path="/portal/:slug/*" element={<PortalApp />} />
 
+      <Route path="/accept-invite/:token" element={<AcceptInvite />} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />

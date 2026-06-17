@@ -13,6 +13,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   // null = use plan defaults; array = custom grants for this user
   const [userModuleGrants, setUserModuleGrants] = useState(null);
+  const [showSalary, setShowSalary] = useState(false);
   // Prevents onAuthStateChange from clobbering state mid-registration
   const registeringRef = useRef(false);
 
@@ -26,7 +27,7 @@ export function AuthProvider({ children }) {
 
     const { data: cu } = await supabase
       .from('company_users')
-      .select('role, company_id, companies(*, subscription_plans(*))')
+      .select('role, company_id, show_salary, companies(*, subscription_plans(*))')
       .eq('user_id', sessionUser.id)
       .eq('is_active', true)
       .maybeSingle();
@@ -34,6 +35,7 @@ export function AuthProvider({ children }) {
     if (cu) {
       setUserRole(cu.role);
       setCompany(cu.companies);
+      setShowSalary(cu.show_salary ?? false);
       const plan = cu.companies?.subscription_plans;
       if (plan) {
         setSubscription({ ...plan, planData: PLANS[plan.code] || PLANS.free });
@@ -54,8 +56,10 @@ export function AuthProvider({ children }) {
       setSubscription(null);
       setUserRole(null);
       setIsAdmin(false);
+      setShowSalary(false);
       setUserModuleGrants(null);
     } else {
+      setShowSalary(!!adminRow); // admins always see salary
       setUserModuleGrants(null);
     }
   }
@@ -88,6 +92,7 @@ export function AuthProvider({ children }) {
           setSubscription(null);
           setUserRole(null);
           setIsAdmin(false);
+          setShowSalary(false);
           setUserModuleGrants(null);
         }
         setLoading(false);
@@ -110,6 +115,7 @@ export function AuthProvider({ children }) {
     setSubscription(null);
     setUserRole(null);
     setIsAdmin(false);
+    setShowSalary(false);
     setUserModuleGrants(null);
   }
 
@@ -123,6 +129,7 @@ export function AuthProvider({ children }) {
       setSubscription(null);
       setUserRole(null);
       setIsAdmin(false);
+      setShowSalary(false);
       setUserModuleGrants(null);
     };
 
@@ -243,6 +250,7 @@ export function AuthProvider({ children }) {
     subscription,
     userRole,
     isAdmin,
+    showSalary: isAdmin ? true : showSalary,
     loading,
     signIn,
     signOut,
