@@ -10,7 +10,7 @@ import { FormField, Input, Select, SearchInput } from '../../components/ui/Form'
 import { formatDate, getDaysUntilExpiry, getDocumentStatus } from '../../lib/calculations';
 import { useForm } from 'react-hook-form';
 
-const DOC_TYPES = ['Passport', 'Visa', 'CPR', 'Work Permit', 'Driving License', 'Health Card', 'Educational Certificate', 'Professional License', 'Other'];
+const DOC_TYPES = ['Passport', 'Visa', 'National ID', 'Work Permit', 'Driving License', 'Health Card', 'Educational Certificate', 'Professional License', 'Other'];
 
 export default function DocumentsPage() {
   const { companyId } = useAuth();
@@ -93,7 +93,7 @@ export default function DocumentsPage() {
       <div className="page-header">
         <div>
           <h2 className="text-xl font-bold text-secondary-900">Documents & Expiry</h2>
-          <p className="text-sm text-secondary-500">Track passport, visa, CPR, work permit and license expiries</p>
+          <p className="text-sm text-secondary-500">Track passport, visa, National ID, work permit and license expiries</p>
         </div>
         <button onClick={() => { setEditingDoc(null); setShowForm(true); }} className="btn-primary">
           <Plus className="w-4 h-4" /> Add Document

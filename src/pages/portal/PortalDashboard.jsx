@@ -367,8 +367,8 @@ function ProfileTab({ empId }) {
         </div>
         {!editing ? (
           <>
-            <Row label="CPR / National ID"   value={emp?.cpr_number} />
-            <Row label="CPR Expiry"          value={formatDate(emp?.cpr_expiry)} />
+            <Row label="National ID"            value={emp?.cpr_number} />
+            <Row label="National ID Expiry"     value={formatDate(emp?.cpr_expiry)} />
             <Row label="Passport No."        value={emp?.passport_number} />
             <Row label="Passport Expiry"     value={formatDate(emp?.passport_expiry)} />
             <Row label="Passport Issued In"  value={emp?.passport_issue_country} />
@@ -377,8 +377,8 @@ function ProfileTab({ empId }) {
           </>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="CPR / National ID"  field="cpr_number" />
-            <Field label="CPR Expiry"         field="cpr_expiry" type="date" />
+            <Field label="National ID"          field="cpr_number" />
+            <Field label="National ID Expiry"   field="cpr_expiry" type="date" />
             <Field label="Passport No."       field="passport_number" />
             <Field label="Passport Expiry"    field="passport_expiry" type="date" />
             <Field label="Passport Issued In" field="passport_issue_country" />

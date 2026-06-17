@@ -20,7 +20,7 @@ const TABS = ['Personal', 'Employment', 'Salary', 'Education', 'Work History', '
 
 // Country-specific national ID configuration
 const NATIONAL_ID = {
-  BH: { label: 'CPR Number', expiryLabel: 'CPR Expiry Date', placeholder: '880112345', required: true },
+  BH: { label: 'National ID (CPR)', expiryLabel: 'National ID Expiry', placeholder: '880112345', required: true },
   SA: { label: 'National ID / Iqama No.', expiryLabel: 'Iqama Expiry Date', placeholder: '2xxxxxxxxx', required: true },
   AE: { label: 'Emirates ID', expiryLabel: 'Emirates ID Expiry', placeholder: '784-xxxx-xxxxxxx-x', required: true },
   QA: { label: 'Qatar ID (QID)', expiryLabel: 'QID Expiry Date', placeholder: '28xxxxxxxxx', required: true },
@@ -525,7 +525,7 @@ function DependentsTab({ employeeId, companyId, countries }) {
               <p className="text-xs text-secondary-500">{r.nationality}{r.date_of_birth ? ` · DOB: ${formatDate(r.date_of_birth)}` : ''}</p>
               <div className="flex gap-3 mt-1 flex-wrap">
                 {r.passport_number && <span className="text-xs text-secondary-400">Passport: {r.passport_number}{r.passport_expiry ? ` (exp. ${formatDate(r.passport_expiry)})` : ''}</span>}
-                {r.cpr_number && <span className="text-xs text-secondary-400">CPR: {r.cpr_number}{r.cpr_expiry ? ` (exp. ${formatDate(r.cpr_expiry)})` : ''}</span>}
+                {r.cpr_number && <span className="text-xs text-secondary-400">National ID: {r.cpr_number}{r.cpr_expiry ? ` (exp. ${formatDate(r.cpr_expiry)})` : ''}</span>}
                 {r.qualification && <span className="text-xs text-secondary-400">Qual: {r.qualification}</span>}
               </div>
             </div>
@@ -573,10 +573,10 @@ function DependentForm({ editing, countries, nationalities, qualTypes, onClose, 
           </div>
         </div>
         <div className="border-t border-secondary-100 pt-4">
-          <p className="text-xs font-semibold text-secondary-500 uppercase mb-3">CPR</p>
+          <p className="text-xs font-semibold text-secondary-500 uppercase mb-3">National ID</p>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="CPR Number"><Input {...register('cpr_number')} placeholder="XXXXXXXXX" /></FormField>
-            <FormField label="CPR Expiry"><Input {...register('cpr_expiry')} type="date" /></FormField>
+            <FormField label="National ID Number"><Input {...register('cpr_number')} placeholder="XXXXXXXXX" /></FormField>
+            <FormField label="National ID Expiry"><Input {...register('cpr_expiry')} type="date" /></FormField>
           </div>
         </div>
         <div className="border-t border-secondary-100 pt-4">

@@ -202,7 +202,6 @@ export default function SubscriptionPage() {
                 ['Indemnity & Settlement', 'indemnity'],
                 ['Calculation Settings', 'settings'],
                 ['Employee Self Service (ESS)', 'ess'],
-                ['Database Integration', 'database'],
               ].map(([label, code]) => (
                 <tr key={code} className="border-b border-secondary-100">
                   <td className="py-2.5 pr-4 text-secondary-700 text-sm">{label}</td>

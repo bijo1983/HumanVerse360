@@ -11,21 +11,21 @@ export const PLANS = {
     name: 'Small Enterprise',
     price: 20,
     maxEmployees: 25,
-    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess', 'database'],
+    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess'],
   },
   medium: {
     code: 'medium',
     name: 'Medium Enterprise',
     price: 50,
     maxEmployees: 100,
-    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess', 'database'],
+    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess'],
   },
   large: {
     code: 'large',
     name: 'Large Enterprise',
     price: 250,
     maxEmployees: Infinity,
-    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess', 'database'],
+    modules: ['employees', 'documents', 'leave', 'payroll', 'indemnity', 'settings', 'ess'],
   },
 };
 
@@ -37,7 +37,6 @@ export const MODULE_LABELS = {
   indemnity: 'Indemnity & Settlement',
   settings: 'Calculation Settings',
   ess: 'Employee Self Service',
-  database: 'Database Integration',
 };
 
 export const ROUTE_MODULE = {
@@ -49,7 +48,6 @@ export const ROUTE_MODULE = {
   '/indemnity': 'indemnity',
   '/settings/calculations': 'settings',
   '/settings/general': 'settings',
-  '/settings/database': 'database',
   '/ess': 'ess',
 };
 
