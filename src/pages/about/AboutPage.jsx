@@ -413,7 +413,7 @@ export default function AboutPage() {
               {
                 icon: Phone,
                 title: 'Call Us',
-                lines: ['+973 3300 0000', 'Sun – Thu, 9 AM – 6 PM (AST)'],
+                lines: ['+973 38991983', 'Sun – Thu, 9 AM – 6 PM (AST)'],
                 color: '#3DB83F',
                 bg: '#F0FDF4',
               },
