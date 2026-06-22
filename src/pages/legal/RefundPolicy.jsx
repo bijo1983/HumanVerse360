@@ -148,8 +148,9 @@ export default function RefundPolicy() {
         </p>
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
-          <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
+          <p>CR No. 149717-1</p>
+          <p>Flat/Shop 2078, Building 747, Road 1124, Block 311</p>
+          <p>Alsalmaniya, Manama, Kingdom of Bahrain</p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
           <p className="text-gray-400 text-xs pt-1">Business hours: Sunday – Thursday, 9 AM – 6 PM (AST, UTC+3)</p>

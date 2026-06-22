@@ -217,8 +217,9 @@ export default function TermsAndConditions() {
         <p>For questions about these Terms, please contact:</p>
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
-          <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
+          <p>CR No. 149717-1</p>
+          <p>Flat/Shop 2078, Building 747, Road 1124, Block 311</p>
+          <p>Alsalmaniya, Manama, Kingdom of Bahrain</p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
         </div>

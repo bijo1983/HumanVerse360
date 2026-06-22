@@ -421,7 +421,7 @@ export default function AboutPage() {
               {
                 icon: MapPin,
                 title: 'Our Location',
-                lines: ['Manama, Kingdom of Bahrain', 'Innovegic Consultancy & IT Services Co W.L.L'],
+                lines: ['Flat/Shop 2078, Building 747, Road 1124,', 'Block 311, Alsalmaniya, Manama, Bahrain'],
                 color: '#D97706',
                 bg: '#FFFBEB',
               },

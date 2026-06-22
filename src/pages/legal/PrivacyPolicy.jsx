@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
         <p>
           HumanVerse360 ("<strong>we</strong>", "<strong>us</strong>", or "<strong>our</strong>") is a cloud-based HR and
           Payroll management platform operated by <strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong>,
-          a company registered in the Kingdom of Bahrain, located in Manama, Bahrain.
+          a company registered in the Kingdom of Bahrain (CR No. 149717-1), located at Flat/Shop 2078, Building 747, Road 1124, Block 311, Alsalmaniya, Manama, Bahrain.
         </p>
         <p>
           This Privacy Policy describes how we collect, use, disclose, and safeguard your information when you
@@ -140,8 +140,9 @@ export default function PrivacyPolicy() {
         <p>If you have questions or concerns about this Privacy Policy, please contact us:</p>
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
-          <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
+          <p>CR No. 149717-1</p>
+          <p>Flat/Shop 2078, Building 747, Road 1124, Block 311</p>
+          <p>Alsalmaniya, Manama, Kingdom of Bahrain</p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
         </div>
