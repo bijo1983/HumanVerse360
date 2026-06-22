@@ -40,7 +40,7 @@ export default function RefundPolicy() {
       <Section title="3. Subscription Cancellation">
         <p>
           You may cancel your paid subscription at any time through your account settings or by
-          contacting us at <strong>support@humanverse360.com</strong>.
+          contacting us at <strong>info@innovegicit.com</strong>.
         </p>
         <p>
           Upon cancellation:
@@ -102,7 +102,7 @@ export default function RefundPolicy() {
       <Section title="6. How to Request a Refund">
         <p>To submit a refund request, please contact us within <strong>7 days</strong> of the disputed charge:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li><strong>Email:</strong> <a href="mailto:support@humanverse360.com" className="text-blue-600 hover:underline">support@humanverse360.com</a></li>
+          <li><strong>Email:</strong> <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></li>
           <li><strong>Subject line:</strong> Refund Request — [Your Company Name]</li>
           <li><strong>Include:</strong> Your registered email, the transaction date, the amount charged,
             and the reason for the refund request.</li>
@@ -149,7 +149,7 @@ export default function RefundPolicy() {
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
           <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:support@humanverse360.com" className="text-blue-600 hover:underline">support@humanverse360.com</a></p>
+          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
           <p className="text-gray-400 text-xs pt-1">Business hours: Sunday – Thursday, 9 AM – 6 PM (AST, UTC+3)</p>

@@ -407,7 +407,7 @@ export default function AboutPage() {
               {
                 icon: Mail,
                 title: 'Email Us',
-                lines: ['info@innovegicit.com', 'support@humanverse360.com'],
+                lines: ['info@innovegicit.com', 'info@innovegicit.com'],
                 color: '#2563EB',
                 bg: '#EFF6FF',
               },

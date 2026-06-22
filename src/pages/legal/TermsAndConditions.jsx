@@ -63,7 +63,7 @@ export default function TermsAndConditions() {
             under your account</li>
         </ul>
         <p>
-          You must notify us immediately at <strong>support@humanverse360.com</strong> if you suspect
+          You must notify us immediately at <strong>info@innovegicit.com</strong> if you suspect
           unauthorized access to your account.
         </p>
       </Section>
@@ -218,7 +218,7 @@ export default function TermsAndConditions() {
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
           <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:support@humanverse360.com" className="text-blue-600 hover:underline">support@humanverse360.com</a></p>
+          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
         </div>

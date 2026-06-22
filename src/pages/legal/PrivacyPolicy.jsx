@@ -118,7 +118,7 @@ export default function PrivacyPolicy() {
           <li><strong>Portability:</strong> Request your data in a structured, machine-readable format</li>
           <li><strong>Objection:</strong> Object to certain types of processing</li>
         </ul>
-        <p>To exercise any of these rights, please contact us at <strong>support@humanverse360.com</strong>.</p>
+        <p>To exercise any of these rights, please contact us at <strong>info@innovegicit.com</strong>.</p>
       </Section>
 
       <Section title="9. Children's Privacy">
@@ -141,7 +141,7 @@ export default function PrivacyPolicy() {
         <div className="bg-gray-50 rounded-xl p-5 mt-3 space-y-1">
           <p><strong>Innovegic Consultancy &amp; IT Services Co W.L.L</strong></p>
           <p>Manama, Kingdom of Bahrain</p>
-          <p>Email: <a href="mailto:support@humanverse360.com" className="text-blue-600 hover:underline">support@humanverse360.com</a></p>
+          <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Email: <a href="mailto:info@innovegicit.com" className="text-blue-600 hover:underline">info@innovegicit.com</a></p>
           <p>Phone: <a href="tel:+97338991983" className="text-blue-600 hover:underline">+973 38991983</a></p>
         </div>
