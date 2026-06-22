@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle2, Mail, KeyRound, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle2, Mail, KeyRound, ShieldCheck, Home } from 'lucide-react';
 import { FormField, Input } from '../../components/ui/Form';
 import { useForm } from 'react-hook-form';
 
@@ -246,6 +246,13 @@ export default function Login() {
       <BrandingPanel />
 
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10">
+        {/* Home link */}
+        <div className="w-full max-w-sm mb-4">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            <Home className="w-4 h-4" />Home
+          </Link>
+        </div>
+
         {/* Mobile logo */}
         <div className="lg:hidden mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
