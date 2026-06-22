@@ -22,6 +22,9 @@ import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import AdminPage from './pages/admin/AdminPage';
 import PortalApp from './pages/portal/PortalApp';
 import AboutPage from './pages/about/AboutPage';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import TermsAndConditions from './pages/legal/TermsAndConditions';
+import RefundPolicy from './pages/legal/RefundPolicy';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -68,6 +71,9 @@ function AppRoutes() {
       <Route path="/portal/:slug/*" element={<PortalApp />} />
 
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsAndConditions />} />
+      <Route path="/refund-policy" element={<RefundPolicy />} />
 
       <Route path="/accept-invite/:token" element={<AcceptInvite />} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

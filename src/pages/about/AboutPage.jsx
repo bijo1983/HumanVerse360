@@ -117,6 +117,7 @@ export default function AboutPage() {
             <a href="#pricing" className="hover:text-gray-900 transition-colors">Pricing</a>
             <a href="#about" className="hover:text-gray-900 transition-colors">About</a>
             <a href="#contact" className="hover:text-gray-900 transition-colors">Contact</a>
+            <Link to="/privacy-policy" className="hover:text-gray-900 transition-colors">Legal</Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link to="/register"
@@ -479,6 +480,11 @@ export default function AboutPage() {
             ))}
             <Link to="/login" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Sign In</Link>
             <Link to="/register" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Register</Link>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 mb-5">
+            <Link to="/privacy-policy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Terms &amp; Conditions</Link>
+            <Link to="/refund-policy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Refund Policy</Link>
           </div>
           <p className="text-xs text-gray-500 mb-2">
             A product of{' '}
