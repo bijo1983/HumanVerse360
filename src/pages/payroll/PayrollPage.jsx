@@ -3,7 +3,7 @@ import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, 
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
-  useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun,
+  useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
 } from '../../hooks/usePayroll';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
@@ -204,6 +204,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: settings } = usePayrollSettings(companyId);
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
+  const { data: calcFormulas = {} } = usePayrollFormulas();
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -272,6 +273,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
           availableEmployees={allEmployees}
           settings={settings}
           leaveMap={leaveMap}
+          calcFormulas={calcFormulas}
           month={month}
           year={year}
         />
@@ -288,6 +290,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: settings } = usePayrollSettings(companyId);
   const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
+  const { data: calcFormulas = {} } = usePayrollFormulas();
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
@@ -380,6 +383,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
           ref={gridRef}
           employees={allEmployees}
           settings={settings}
+          calcFormulas={calcFormulas}
           month={run.month}
           year={run.year}
           existingItems={items}

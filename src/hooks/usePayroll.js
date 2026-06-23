@@ -228,6 +228,24 @@ export function useApprovePayrollRun() {
   });
 }
 
+// Fetches active LEAVE_PAY and NET_SALARY formulas from calculation_settings.
+// Returns { LEAVE_PAY: "formula_string", NET_SALARY: "formula_string" } or empty object.
+export function usePayrollFormulas() {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ['payroll-calc-formulas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('calculation_settings')
+        .select('code, formula')
+        .eq('is_active', true)
+        .in('category', ['Leave', 'Payroll']);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map(f => [f.code, f.formula]));
+    },
+  });
+}
+
 export function useDeletePayrollRun(companyId) {
   const qc = useQueryClient();
   return useMutation({

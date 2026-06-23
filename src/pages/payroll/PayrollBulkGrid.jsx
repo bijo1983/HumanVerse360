@@ -1,11 +1,40 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { getDaysInMonth } from 'date-fns';
+import { evaluateFormula } from '../../lib/calculations';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function r3(n) { return Math.round(Number(n || 0) * 1000) / 1000; }
 
-function recompute(row, settings, dim) {
+// Builds the shared variables context for formula evaluation
+function buildFormulaContext(row, settings, dim, gosiEmp, gosiEr, otAmt, basicPro, gross, totalDed) {
+  const basic = Number(row.basic_salary) || 0;
+  const housing   = Number(row.housing_allowance) || 0;
+  const transport = Number(row.transport_allowance) || 0;
+  const food      = Number(row.food_allowance) || 0;
+  const other     = Number(row.other_allowances) || 0;
+  return {
+    basic_salary:        basic,
+    housing_allowance:   housing,
+    transport_allowance: transport,
+    food_allowance:      food,
+    other_allowances:    other,
+    // gross_salary in formula = basic component only (not incl. allowances) so formula math adds correctly
+    gross_salary:        basicPro + otAmt + (Number(row.bonus) || 0),
+    total_allowances:    housing + transport + food + other,
+    days_in_month:       dim,
+    working_days:        settings?.working_days_per_month || 26,
+    daily_rate:          basic / (dim || 1),
+    hourly_rate:         basic / ((dim || 1) * 8),
+    ot_hours:            Number(row.overtime_hours) || 0,
+    leave_days:          Number(row.leave_days) || 0,
+    gosi_employee:       gosiEmp,
+    gosi_employer:       gosiEr,
+    total_deductions:    totalDed,
+  };
+}
+
+function recompute(row, settings, dim, calcFormulas = {}) {
   const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
   const pct = (val, def) => (val != null && val !== '' ? Number(val) : def) / 100;
   const empPct = isBahraini ? pct(settings?.bahraini_employee_gosi_pct, 8) : pct(settings?.expat_employee_gosi_pct, 1);
@@ -22,7 +51,7 @@ function recompute(row, settings, dim) {
   const food      = Number(row.food_allowance) || 0;
   const other     = Number(row.other_allowances) || 0;
   const otH       = Number(row.overtime_hours) || 0;
-  const hourly    = basic / (dim * 8);
+  const hourly    = basic / ((dim || 1) * 8);
   const otAmt     = r3(hourly * otH * otRate);
   const bonus     = Number(row.bonus) || 0;
   const gross     = r3(basicPro + housing + transport + food + other + otAmt + bonus);
@@ -31,17 +60,49 @@ function recompute(row, settings, dim) {
   const loan      = Number(row.loan_deduction) || 0;
   const otherDed  = Number(row.other_deductions) || 0;
   const totalDed  = r3(gosiEmp + loan + otherDed);
-  const net       = r3(gross - totalDed);
 
-  return { ...row, days_worked: dw, leave_days: ld, absent_days: absent, overtime_amount: otAmt, gross_salary: gross, gosi_employee: gosiEmp, gosi_employer: gosiEr, total_deductions: totalDed, net_salary: net };
+  // ── Formula-based LEAVE_PAY ─────────────────────────────────────────────────
+  let leavePay = 0;
+  if (calcFormulas['LEAVE_PAY'] && ld > 0) {
+    const ctx = buildFormulaContext(row, settings, dim, gosiEmp, gosiEr, otAmt, basicPro, gross, totalDed);
+    leavePay = r3(evaluateFormula(calcFormulas['LEAVE_PAY'], ctx) || 0);
+  }
+
+  // ── Formula-based NET_SALARY (with LEAVE_PAY substituted in) ────────────────
+  let net;
+  if (calcFormulas['NET_SALARY']) {
+    const ctx = buildFormulaContext(row, settings, dim, gosiEmp, gosiEr, otAmt, basicPro, gross, totalDed);
+    ctx.LEAVE_PAY = leavePay;
+    ctx.leave_pay = leavePay;
+    ctx.leave_salary = leavePay;
+    net = r3(evaluateFormula(calcFormulas['NET_SALARY'], ctx) || 0);
+  } else {
+    net = r3(gross + leavePay - totalDed);
+  }
+
+  return {
+    ...row,
+    days_worked: dw,
+    leave_days: ld,
+    absent_days: absent,
+    overtime_amount: otAmt,
+    gross_salary: gross,
+    gosi_employee: gosiEmp,
+    gosi_employer: gosiEr,
+    total_deductions: totalDed,
+    net_salary: net,
+  };
 }
 
-function makeRowFromEmployee(emp, dim, leaveMap = {}) {
+function makeRowFromEmployee(emp, dim, leaveMap = {}, hasLeaveFormula = false) {
   const leaveInfo = leaveMap[emp.id] || { days: 0, unpaidDays: 0 };
   const leaveDays = leaveInfo.days || 0;
-  // Paid leave: days_worked stays full (no salary deduction).
-  // Unpaid leave: reduce days_worked by the unpaid portion.
-  const daysWorked = Math.max(0, dim - (leaveInfo.unpaidDays || 0));
+  // Formula mode: days_worked = actual worked days (excl. all leave).
+  // LEAVE_PAY formula then adds back pay for paid leave days.
+  // Fallback mode: only unpaid leave reduces days_worked.
+  const daysWorked = hasLeaveFormula
+    ? Math.max(0, dim - leaveDays)
+    : Math.max(0, dim - (leaveInfo.unpaidDays || 0));
   return {
     employee_id: emp.id,
     first_name: emp.first_name || '',
@@ -148,12 +209,13 @@ function fmtNum(v, col) {
   return v != null && !isNaN(v) ? Number(v).toFixed(3) : '–';
 }
 
-const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, leaveMap = {}, month, year, existingItems, readOnly = false }, ref) {
+const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, leaveMap = {}, calcFormulas = {}, month, year, existingItems, readOnly = false }, ref) {
   const dim = getDaysInMonth(new Date(year, month - 1, 1));
+  const hasLeaveFormula = !!calcFormulas['LEAVE_PAY'];
 
   const [rows, setRows] = useState(() => {
-    if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim));
-    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim, leaveMap), settings, dim));
+    if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim, calcFormulas));
+    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas));
   });
 
   // Re-run GOSI/OT calculations whenever settings finish loading from the server
@@ -167,7 +229,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       prev?.bahraini_employer_gosi_pct !== settings?.bahraini_employer_gosi_pct ||
       prev?.ot_rate_normal !== settings?.ot_rate_normal;
     if (changed) {
-      setRows(prev => prev.map(row => recompute(row, settings, dim)));
+      setRows(prev => prev.map(row => recompute(row, settings, dim, calcFormulas)));
       prevSettingsRef.current = settings;
     }
   }, [settings, dim]);
@@ -176,14 +238,16 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
     getRows: () => rows,
     addEmployee: (emp) => setRows(prev => {
       if (prev.find(r => r.employee_id === emp.id)) return prev;
-      return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap), settings, dim)];
+      return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas)];
     }),
     removeRow: (employeeId) => setRows(prev => prev.filter(r => r.employee_id !== employeeId)),
     syncLeave: (newLeaveMap) => setRows(prev => prev.map(row => {
       const info = newLeaveMap[row.employee_id] || { days: 0, unpaidDays: 0 };
       const leaveDays = info.days || 0;
-      const daysWorked = Math.max(0, dim - (info.unpaidDays || 0));
-      return recompute({ ...row, leave_days: leaveDays, days_worked: daysWorked }, settings, dim);
+      const daysWorked = hasLeaveFormula
+        ? Math.max(0, dim - leaveDays)
+        : Math.max(0, dim - (info.unpaidDays || 0));
+      return recompute({ ...row, leave_days: leaveDays, days_worked: daysWorked }, settings, dim, calcFormulas);
     })),
   }));
 
@@ -193,7 +257,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       let val = key === 'days_worked'
         ? Math.max(0, Math.min(dim, Number(rawVal) || 0))
         : Number(rawVal) || 0;
-      copy[idx] = recompute({ ...copy[idx], [key]: val }, settings, dim);
+      copy[idx] = recompute({ ...copy[idx], [key]: val }, settings, dim, calcFormulas);
       return copy;
     });
   };
