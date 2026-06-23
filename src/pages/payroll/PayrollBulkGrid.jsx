@@ -1,0 +1,326 @@
+import { useState, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { getDaysInMonth } from 'date-fns';
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function r3(n) { return Math.round(Number(n || 0) * 1000) / 1000; }
+
+function recompute(row, settings, dim) {
+  const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
+  const empPct = isBahraini ? (Number(settings?.bahraini_employee_gosi_pct) || 8) / 100 : (Number(settings?.expat_employee_gosi_pct) || 1) / 100;
+  const erPct  = isBahraini ? (Number(settings?.bahraini_employer_gosi_pct) || 13) / 100 : (Number(settings?.expat_employer_gosi_pct) || 3) / 100;
+  const otRate = Number(settings?.ot_rate_normal) || 1.25;
+
+  const basic  = Number(row.basic_salary) || 0;
+  const dw     = Number(row.days_worked) >= 0 ? Number(row.days_worked) : dim;
+  const ld     = Number(row.leave_days) || 0;
+  const absent = Math.max(0, dim - dw - ld);
+  const basicPro = dw < dim ? r3((basic / dim) * dw) : basic;
+  const housing   = Number(row.housing_allowance) || 0;
+  const transport = Number(row.transport_allowance) || 0;
+  const food      = Number(row.food_allowance) || 0;
+  const other     = Number(row.other_allowances) || 0;
+  const otH       = Number(row.overtime_hours) || 0;
+  const hourly    = basic / (dim * 8);
+  const otAmt     = r3(hourly * otH * otRate);
+  const bonus     = Number(row.bonus) || 0;
+  const gross     = r3(basicPro + housing + transport + food + other + otAmt + bonus);
+  const gosiEmp   = r3(basic * empPct);
+  const gosiEr    = r3(basic * erPct);
+  const loan      = Number(row.loan_deduction) || 0;
+  const otherDed  = Number(row.other_deductions) || 0;
+  const totalDed  = r3(gosiEmp + loan + otherDed);
+  const net       = r3(gross - totalDed);
+
+  return { ...row, days_worked: dw, leave_days: ld, absent_days: absent, overtime_amount: otAmt, gross_salary: gross, gosi_employee: gosiEmp, gosi_employer: gosiEr, total_deductions: totalDed, net_salary: net };
+}
+
+function makeRowFromEmployee(emp, dim) {
+  return {
+    employee_id: emp.id,
+    first_name: emp.first_name || '',
+    last_name: emp.last_name || '',
+    employee_number: emp.employee_id || '',
+    nationality: emp.nationality || '',
+    department: emp.departments?.name || emp.department || '–',
+    basic_salary: emp.basic_salary || 0,
+    housing_allowance: emp.housing_allowance || 0,
+    transport_allowance: emp.transport_allowance || 0,
+    food_allowance: emp.food_allowance || 0,
+    other_allowances: emp.other_allowances || 0,
+    overtime_hours: 0,
+    bonus: 0,
+    loan_deduction: 0,
+    other_deductions: 0,
+    leave_days: 0,
+    days_worked: dim,
+  };
+}
+
+function makeRowFromItem(item, dim) {
+  return {
+    id: item.id,
+    employee_id: item.employee_id,
+    first_name: item.employees?.first_name || '',
+    last_name: item.employees?.last_name || '',
+    employee_number: item.employees?.employee_id || '',
+    nationality: item.employees?.nationality || '',
+    department: '–',
+    basic_salary: item.basic_salary || 0,
+    housing_allowance: item.housing_allowance || 0,
+    transport_allowance: item.transport_allowance || 0,
+    food_allowance: item.food_allowance || 0,
+    other_allowances: item.other_allowances || 0,
+    overtime_hours: item.overtime_hours || 0,
+    overtime_amount: item.overtime_amount || 0,
+    bonus: item.bonus || 0,
+    loan_deduction: item.loan_deduction || 0,
+    other_deductions: item.other_deductions || 0,
+    leave_days: item.leave_days || 0,
+    days_worked: item.working_days != null ? item.working_days : dim,
+    absent_days: item.absent_days || 0,
+    gross_salary: item.gross_salary || 0,
+    gosi_employee: item.gosi_employee || 0,
+    gosi_employer: item.gosi_employer || 0,
+    total_deductions: item.total_deductions || 0,
+    net_salary: item.net_salary || 0,
+  };
+}
+
+// Column definitions
+const COLS = [
+  // Attendance
+  { key: 'days_in_month', label: 'Days/Mo', group: 'attendance', w: 66, editable: false },
+  { key: 'days_worked', label: 'Worked', group: 'attendance', w: 72, editable: true, int: true },
+  { key: 'leave_days', label: 'Leave', group: 'attendance', w: 62, editable: true },
+  // Earnings
+  { key: 'basic_salary', label: 'Basic', group: 'earnings', w: 96, editable: true },
+  { key: 'housing_allowance', label: 'Housing', group: 'earnings', w: 88, editable: true },
+  { key: 'transport_allowance', label: 'Transport', group: 'earnings', w: 88, editable: true },
+  { key: 'food_allowance', label: 'Food', group: 'earnings', w: 80, editable: true },
+  { key: 'other_allowances', label: 'Other Allow.', group: 'earnings', w: 90, editable: true },
+  { key: 'overtime_hours', label: 'OT Hrs', group: 'earnings', w: 68, editable: true },
+  { key: 'overtime_amount', label: 'OT Amt', group: 'earnings', w: 88, editable: false },
+  { key: 'bonus', label: 'Bonus', group: 'earnings', w: 88, editable: true },
+  { key: 'gross_salary', label: 'Gross', group: 'gross', w: 104, editable: false, bold: true },
+  // GOSI
+  { key: 'gosi_employee', label: 'GOSI Emp', group: 'gosi', w: 90, editable: false },
+  { key: 'gosi_employer', label: 'GOSI Er.', group: 'gosi', w: 90, editable: false },
+  // Deductions
+  { key: 'loan_deduction', label: 'Loan Ded.', group: 'deductions', w: 90, editable: true },
+  { key: 'other_deductions', label: 'Other Ded.', group: 'deductions', w: 90, editable: true },
+  { key: 'total_deductions', label: 'Total Ded.', group: 'deductions', w: 96, editable: false, bold: true },
+  // Net
+  { key: 'net_salary', label: 'Net Pay', group: 'net', w: 108, editable: false, bold: true },
+];
+
+const GROUP_META = {
+  attendance:  { label: 'Attendance',  cls: 'bg-sky-50 text-sky-700 border-sky-200', hdr: 'bg-sky-50/60' },
+  earnings:    { label: 'Earnings',    cls: 'bg-green-50 text-green-700 border-green-200', hdr: 'bg-green-50/60' },
+  gross:       { label: 'Gross',       cls: 'bg-green-100 text-green-800 border-green-300', hdr: 'bg-green-100/60' },
+  gosi:        { label: 'GOSI',        cls: 'bg-orange-50 text-orange-700 border-orange-200', hdr: 'bg-orange-50/60' },
+  deductions:  { label: 'Deductions',  cls: 'bg-red-50 text-red-700 border-red-200', hdr: 'bg-red-50/60' },
+  net:         { label: 'Net Pay',     cls: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold', hdr: 'bg-emerald-100/60' },
+};
+
+// Consecutive group spans for the header row
+function colGroupSpans() {
+  const spans = [];
+  let cur = null;
+  COLS.forEach(c => {
+    if (cur && cur.group === c.group) { cur.span++; }
+    else { cur = { group: c.group, span: 1 }; spans.push(cur); }
+  });
+  return spans;
+}
+const GROUP_SPANS = colGroupSpans();
+
+function fmtNum(v, col) {
+  if (col.key === 'days_in_month') return v;
+  if (col.key === 'days_worked' || col.key === 'overtime_hours') return v != null ? Number(v).toFixed(0) : '–';
+  if (col.key === 'leave_days') return v != null ? Number(v).toFixed(1) : '–';
+  return v != null && !isNaN(v) ? Number(v).toFixed(3) : '–';
+}
+
+const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], settings = {}, month, year, existingItems, readOnly = false }, ref) {
+  const dim = getDaysInMonth(new Date(year, month - 1, 1));
+
+  const [rows, setRows] = useState(() => {
+    if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim));
+    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim), settings, dim));
+  });
+
+  useImperativeHandle(ref, () => ({
+    getRows: () => rows,
+    addEmployee: (emp) => setRows(prev => {
+      if (prev.find(r => r.employee_id === emp.id)) return prev;
+      return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim)];
+    }),
+    removeRow: (employeeId) => setRows(prev => prev.filter(r => r.employee_id !== employeeId)),
+  }));
+
+  const updateField = (idx, key, rawVal) => {
+    setRows(prev => {
+      const copy = [...prev];
+      let val = key === 'days_worked'
+        ? Math.max(0, Math.min(dim, Number(rawVal) || 0))
+        : Number(rawVal) || 0;
+      copy[idx] = recompute({ ...copy[idx], [key]: val }, settings, dim);
+      return copy;
+    });
+  };
+
+  const totals = useMemo(() => COLS.reduce((acc, col) => {
+    const skip = ['days_in_month', 'days_worked', 'overtime_hours', 'leave_days'];
+    if (!skip.includes(col.key)) acc[col.key] = r3(rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0));
+    return acc;
+  }, {}), [rows]);
+
+  const empInGrid = new Set(rows.map(r => r.employee_id));
+  const availableToAdd = employees.filter(e => !empInGrid.has(e.id));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Summary banner */}
+      <div className="flex flex-wrap gap-4 px-1 text-sm">
+        <span className="text-secondary-500">
+          <strong className="text-secondary-800">{MONTHS[month - 1]} {year}</strong>
+          {' · '}{rows.length} employees{' · '}{dim} days
+        </span>
+        <span className="text-green-700 font-mono font-semibold">Gross: {Number(totals.gross_salary || 0).toFixed(3)}</span>
+        <span className="text-red-600 font-mono">Deductions: {Number(totals.total_deductions || 0).toFixed(3)}</span>
+        <span className="text-emerald-700 font-mono font-bold">Net: {Number(totals.net_salary || 0).toFixed(3)}</span>
+      </div>
+
+      {/* Individual mode: add employee */}
+      {!readOnly && availableToAdd.length > 0 && (
+        <div className="flex items-center gap-2">
+          <select
+            className="input text-sm flex-1 max-w-xs"
+            defaultValue=""
+            onChange={e => {
+              const emp = availableToAdd.find(a => a.id === e.target.value);
+              if (emp) {
+                setRows(prev => {
+                  if (prev.find(r => r.employee_id === emp.id)) return prev;
+                  return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim)];
+                });
+                e.target.value = '';
+              }
+            }}
+          >
+            <option value="">+ Add employee to this run…</option>
+            {availableToAdd.map(e => (
+              <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_id})</option>
+            ))}
+          </select>
+          <span className="text-xs text-secondary-400">{availableToAdd.length} employees not yet in this run</span>
+        </div>
+      )}
+
+      {/* Grid */}
+      <div className="overflow-x-auto rounded-lg border border-secondary-200 shadow-sm" style={{ maxHeight: '65vh' }}>
+        <table className="text-xs border-collapse" style={{ minWidth: 1620 }}>
+          <thead className="sticky top-0 z-20">
+            {/* Group header row */}
+            <tr>
+              <th className="sticky left-0 z-30 bg-secondary-200 border border-secondary-300 px-3 py-1.5 text-left text-secondary-500 font-semibold" colSpan={2}></th>
+              {GROUP_SPANS.map(({ group, span }) => {
+                const meta = GROUP_META[group];
+                return (
+                  <th key={group} className={`border ${meta.cls} px-2 py-1.5 text-center font-semibold text-xs`} colSpan={span}>
+                    {meta.label}
+                  </th>
+                );
+              })}
+            </tr>
+            {/* Column header row */}
+            <tr>
+              <th className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-left text-secondary-600 font-semibold whitespace-nowrap" style={{ minWidth: 180 }}>Employee</th>
+              <th className="bg-secondary-100 border border-secondary-200 px-2 py-1.5 text-center text-secondary-500 font-medium whitespace-nowrap" style={{ minWidth: 55 }}>Nat.</th>
+              {COLS.map(col => {
+                const meta = GROUP_META[col.group];
+                return (
+                  <th key={col.key} className={`border border-secondary-200 px-2 py-1.5 text-right text-secondary-600 font-semibold whitespace-nowrap ${meta.hdr}`} style={{ minWidth: col.w }}>
+                    {col.label}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.employee_id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-secondary-50/40'} hover:bg-primary-50/20 transition-colors`}>
+                {/* Sticky employee name */}
+                <td className="sticky left-0 z-10 bg-inherit border border-secondary-200 px-3 py-1 whitespace-nowrap">
+                  <p className="font-medium text-secondary-800 text-xs">{row.first_name} {row.last_name}</p>
+                  <p className="text-[10px] text-secondary-400">{row.employee_number}</p>
+                </td>
+                {/* Nationality badge */}
+                <td className="border border-secondary-200 px-2 py-1 text-center">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${(row.nationality || '').toLowerCase() === 'bahraini' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {(row.nationality || 'N/A').slice(0, 3).toUpperCase()}
+                  </span>
+                </td>
+                {/* Data cells */}
+                {COLS.map(col => {
+                  const meta = GROUP_META[col.group];
+                  const val = col.key === 'days_in_month' ? dim : row[col.key];
+                  return (
+                    <td key={col.key} className={`border border-secondary-200 px-0.5 py-0.5 ${meta.hdr} ${col.bold ? 'font-bold' : ''}`} style={{ minWidth: col.w }}>
+                      {col.editable && !readOnly ? (
+                        <input
+                          type="number"
+                          step={col.int ? '1' : '0.001'}
+                          min="0"
+                          value={val === 0 ? '' : val}
+                          placeholder="0"
+                          onChange={e => updateField(i, col.key, e.target.value)}
+                          className="w-full text-right font-mono text-xs py-1 px-1.5 bg-transparent border border-transparent hover:border-secondary-300 focus:border-primary-400 focus:outline-none focus:bg-white rounded"
+                        />
+                      ) : (
+                        <span className="block text-right font-mono text-xs px-2 py-1">{fmtNum(val, col)}</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={COLS.length + 2} className="py-12 text-center text-secondary-400 text-sm">
+                  No employees in this run. Use the dropdown above to add employees.
+                </td>
+              </tr>
+            )}
+          </tbody>
+
+          {/* Totals footer */}
+          {rows.length > 0 && (
+            <tfoot className="sticky bottom-0 z-20">
+              <tr className="bg-secondary-100 font-bold">
+                <td className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-secondary-700 text-xs whitespace-nowrap" colSpan={2}>
+                  Totals ({rows.length} emp.)
+                </td>
+                {COLS.map(col => {
+                  const meta = GROUP_META[col.group];
+                  const skip = ['days_in_month', 'days_worked', 'overtime_hours', 'leave_days'];
+                  const v = skip.includes(col.key) ? '' : totals[col.key] != null ? Number(totals[col.key]).toFixed(3) : '';
+                  return (
+                    <td key={col.key} className={`border border-secondary-200 px-2 py-1.5 text-right font-mono text-xs ${meta.hdr} ${col.key === 'net_salary' ? 'text-emerald-800' : col.key === 'total_deductions' ? 'text-red-700' : ''}`} style={{ minWidth: col.w }}>
+                      {v}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+});
+
+export default PayrollBulkGrid;
+export { recompute, makeRowFromEmployee };

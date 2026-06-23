@@ -1,11 +1,55 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
+const DEFAULT_SETTINGS = {
+  bahraini_employee_gosi_pct: 8,
+  bahraini_employer_gosi_pct: 13,
+  expat_employee_gosi_pct: 1,
+  expat_employer_gosi_pct: 3,
+  working_days_per_month: 26,
+  ot_rate_normal: 1.25,
+  ot_rate_holiday: 1.50,
+};
+
+export function usePayrollSettings(companyId) {
+  return useQuery({
+    queryKey: ['payroll-settings', companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('payroll_settings')
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      return data || { ...DEFAULT_SETTINGS };
+    },
+    enabled: !!companyId,
+  });
+}
+
+export function useUpsertPayrollSettings(companyId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data) => {
+      const { error } = await supabase.from('payroll_settings').upsert(
+        { ...data, company_id: companyId, updated_at: new Date().toISOString() },
+        { onConflict: 'company_id' }
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-settings', companyId] }),
+  });
+}
+
 export function usePayrollRuns(companyId) {
   return useQuery({
     queryKey: ['payroll-runs', companyId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('payroll_runs').select('*').eq('company_id', companyId).order('year', { ascending: false }).order('month', { ascending: false });
+      const { data, error } = await supabase
+        .from('payroll_runs')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -29,53 +73,119 @@ export function usePayrollLineItems(runId) {
   });
 }
 
-export function useCreatePayrollRun(companyId) {
+// Creates a payroll run from pre-computed grid rows
+export function useCreatePayrollRunWithItems(companyId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ month, year }) => {
-      const { data: existing } = await supabase.from('payroll_runs').select('id').eq('company_id', companyId).eq('month', month).eq('year', year).maybeSingle();
-      if (existing) throw new Error(`Payroll for ${month}/${year} already exists`);
+    mutationFn: async ({ month, year, items, saveAsDraft = true }) => {
+      const { data: existing } = await supabase
+        .from('payroll_runs')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('month', month)
+        .eq('year', year)
+        .maybeSingle();
+      if (existing) throw new Error(`Payroll for ${month}/${year} already exists.`);
 
-      const { data: run, error: runError } = await supabase.from('payroll_runs').insert({ month, year, status: 'Draft', company_id: companyId }).select().single();
+      const status = saveAsDraft ? 'Draft' : 'Approved';
+      const { data: run, error: runError } = await supabase
+        .from('payroll_runs')
+        .insert({ month, year, status, company_id: companyId })
+        .select()
+        .single();
       if (runError) throw runError;
 
-      const { data: employees } = await supabase.from('employees').select('*').eq('company_id', companyId).eq('status', 'Active');
-      if (!employees?.length) return run;
+      const lineItems = items.map(row => ({
+        payroll_run_id: run.id,
+        company_id: companyId,
+        employee_id: row.employee_id,
+        basic_salary: row.basic_salary || 0,
+        housing_allowance: row.housing_allowance || 0,
+        transport_allowance: row.transport_allowance || 0,
+        food_allowance: row.food_allowance || 0,
+        other_allowances: row.other_allowances || 0,
+        overtime_hours: row.overtime_hours || 0,
+        overtime_amount: row.overtime_amount || 0,
+        bonus: row.bonus || 0,
+        gross_salary: row.gross_salary || 0,
+        gosi_employee: row.gosi_employee || 0,
+        gosi_employer: row.gosi_employer || 0,
+        loan_deduction: row.loan_deduction || 0,
+        other_deductions: row.other_deductions || 0,
+        total_deductions: row.total_deductions || 0,
+        net_salary: row.net_salary || 0,
+        working_days: row.days_worked || 0,
+        absent_days: row.absent_days || 0,
+        leave_days: row.leave_days || 0,
+        status,
+      }));
 
-      const items = employees.map(emp => {
-        const gross = (emp.basic_salary || 0) + (emp.housing_allowance || 0) + (emp.transport_allowance || 0) + (emp.food_allowance || 0) + (emp.other_allowances || 0);
-        const isBahraini = emp.nationality?.toLowerCase() === 'bahraini';
-        // Bahraini: Pension 7% + Unemployment 1% = 8% employee; 12% + 1% = 13% employer
-        // Expat:    Work Injury 1% employee; 3% employer
-        const gosi_emp = isBahraini ? (emp.basic_salary || 0) * 0.08 : (emp.basic_salary || 0) * 0.01;
-        const gosi_er  = isBahraini ? (emp.basic_salary || 0) * 0.13 : (emp.basic_salary || 0) * 0.03;
-        return {
-          payroll_run_id: run.id,
-          employee_id: emp.id,
-          company_id: companyId,
-          basic_salary: emp.basic_salary || 0,
-          housing_allowance: emp.housing_allowance || 0,
-          transport_allowance: emp.transport_allowance || 0,
-          food_allowance: emp.food_allowance || 0,
-          other_allowances: emp.other_allowances || 0,
-          gross_salary: gross,
-          gosi_employee: gosi_emp,
-          gosi_employer: gosi_er,
-          total_deductions: gosi_emp,
-          net_salary: gross - gosi_emp,
-          status: 'Draft',
-        };
-      });
+      if (lineItems.length) {
+        const { error: itemsError } = await supabase.from('payroll_line_items').insert(lineItems);
+        if (itemsError) throw itemsError;
+      }
 
-      const { error: itemsError } = await supabase.from('payroll_line_items').insert(items);
-      if (itemsError) throw itemsError;
-
-      const totals = items.reduce((acc, i) => ({ gross: acc.gross + i.gross_salary, ded: acc.ded + i.total_deductions, net: acc.net + i.net_salary }), { gross: 0, ded: 0, net: 0 });
-      await supabase.from('payroll_runs').update({ total_employees: employees.length, total_gross: totals.gross, total_deductions: totals.ded, total_net: totals.net }).eq('id', run.id);
+      const totals = lineItems.reduce(
+        (acc, i) => ({ gross: acc.gross + i.gross_salary, ded: acc.ded + i.total_deductions, net: acc.net + i.net_salary }),
+        { gross: 0, ded: 0, net: 0 }
+      );
+      await supabase.from('payroll_runs').update({
+        total_employees: lineItems.length,
+        total_gross: totals.gross,
+        total_deductions: totals.ded,
+        total_net: totals.net,
+      }).eq('id', run.id);
 
       return run;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
+  });
+}
+
+// Bulk-updates all line items in a draft run then recalculates run totals
+export function useSaveDraftItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ runId, companyId, items }) => {
+      await Promise.all(items.map(row =>
+        supabase.from('payroll_line_items').update({
+          basic_salary: row.basic_salary || 0,
+          housing_allowance: row.housing_allowance || 0,
+          transport_allowance: row.transport_allowance || 0,
+          food_allowance: row.food_allowance || 0,
+          other_allowances: row.other_allowances || 0,
+          overtime_hours: row.overtime_hours || 0,
+          overtime_amount: row.overtime_amount || 0,
+          bonus: row.bonus || 0,
+          gross_salary: row.gross_salary || 0,
+          gosi_employee: row.gosi_employee || 0,
+          gosi_employer: row.gosi_employer || 0,
+          loan_deduction: row.loan_deduction || 0,
+          other_deductions: row.other_deductions || 0,
+          total_deductions: row.total_deductions || 0,
+          net_salary: row.net_salary || 0,
+          working_days: row.days_worked || 0,
+          absent_days: row.absent_days || 0,
+          leave_days: row.leave_days || 0,
+          updated_at: new Date().toISOString(),
+        }).eq('id', row.id)
+      ));
+
+      const totals = items.reduce(
+        (acc, i) => ({ gross: acc.gross + (i.gross_salary || 0), ded: acc.ded + (i.total_deductions || 0), net: acc.net + (i.net_salary || 0) }),
+        { gross: 0, ded: 0, net: 0 }
+      );
+      await supabase.from('payroll_runs').update({
+        total_gross: totals.gross,
+        total_deductions: totals.ded,
+        total_net: totals.net,
+        updated_at: new Date().toISOString(),
+      }).eq('id', runId);
+    },
+    onSuccess: (_, { runId }) => {
+      qc.invalidateQueries({ queryKey: ['payroll-items', runId] });
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+    },
   });
 }
 
@@ -85,7 +195,12 @@ export function useUpdatePayrollItem() {
     mutationFn: async ({ id, runId, ...updates }) => {
       const gross = (updates.basic_salary || 0) + (updates.housing_allowance || 0) + (updates.transport_allowance || 0) + (updates.food_allowance || 0) + (updates.other_allowances || 0) + (updates.overtime_amount || 0) + (updates.bonus || 0);
       const total_ded = (updates.gosi_employee || 0) + (updates.loan_deduction || 0) + (updates.other_deductions || 0);
-      const { data, error } = await supabase.from('payroll_line_items').update({ ...updates, gross_salary: gross, total_deductions: total_ded, net_salary: gross - total_ded, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+      const { data, error } = await supabase
+        .from('payroll_line_items')
+        .update({ ...updates, gross_salary: gross, total_deductions: total_ded, net_salary: gross - total_ded, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     },
@@ -100,7 +215,12 @@ export function useApprovePayrollRun() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, approvedBy }) => {
-      const { error } = await supabase.from('payroll_runs').update({ status: 'Approved', approved_by: approvedBy, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id);
+      const { error } = await supabase.from('payroll_runs').update({
+        status: 'Approved',
+        approved_by: approvedBy,
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', id);
       if (error) throw error;
       await supabase.from('payroll_line_items').update({ status: 'Approved' }).eq('payroll_run_id', id);
     },
@@ -112,7 +232,6 @@ export function useSalaryComponents(companyId) {
   return useQuery({
     queryKey: ['salary-components', companyId ?? null],
     queryFn: async () => {
-      // Returns global rows (company_id IS NULL) plus company-specific rows
       const { data, error } = await supabase
         .from('salary_components')
         .select('*')

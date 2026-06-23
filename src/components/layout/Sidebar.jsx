@@ -3,7 +3,7 @@ import { useAppStore } from '../../store';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   LayoutDashboard, Users, Calendar, FileText, DollarSign, Calculator,
-  Settings, ChevronLeft, Building2, Shield, Smartphone, Crown, Lock, ShieldAlert
+  Settings, ChevronLeft, Building2, Shield, Smartphone, Crown, Lock, ShieldAlert, Percent
 } from 'lucide-react';
 
 const navGroups = [
@@ -33,6 +33,7 @@ const navGroups = [
     items: [
       { to: '/settings/calculations', icon: Settings, label: 'Calculation Settings', module: 'settings' },
       { to: '/settings/general', icon: Building2, label: 'Organization', module: 'settings' },
+      { to: '/settings/payroll', icon: Percent, label: 'Payroll Settings', module: 'settings' },
     ],
   },
   {
