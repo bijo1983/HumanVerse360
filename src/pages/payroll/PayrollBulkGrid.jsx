@@ -142,7 +142,7 @@ function fmtNum(v, col) {
   return v != null && !isNaN(v) ? Number(v).toFixed(3) : '–';
 }
 
-const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], settings = {}, month, year, existingItems, readOnly = false }, ref) {
+const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, month, year, existingItems, readOnly = false }, ref) {
   const dim = getDaysInMonth(new Date(year, month - 1, 1));
 
   const [rows, setRows] = useState(() => {
@@ -177,7 +177,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], se
   }, {}), [rows]);
 
   const empInGrid = new Set(rows.map(r => r.employee_id));
-  const availableToAdd = employees.filter(e => !empInGrid.has(e.id));
+  const availableToAdd = (availableEmployees ?? employees).filter(e => !empInGrid.has(e.id));
 
   return (
     <div className="flex flex-col gap-2">

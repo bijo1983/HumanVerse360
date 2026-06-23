@@ -227,6 +227,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
         <PayrollBulkGrid
           ref={gridRef}
           employees={employees}
+          availableEmployees={allEmployees}
           settings={settings}
           month={month}
           year={year}
