@@ -228,6 +228,19 @@ export function useApprovePayrollRun() {
   });
 }
 
+export function useDeletePayrollRun(companyId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId) => {
+      const { error: itemsError } = await supabase.from('payroll_line_items').delete().eq('payroll_run_id', runId);
+      if (itemsError) throw itemsError;
+      const { error } = await supabase.from('payroll_runs').delete().eq('id', runId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
+  });
+}
+
 export function useSalaryComponents(companyId) {
   return useQuery({
     queryKey: ['salary-components', companyId ?? null],

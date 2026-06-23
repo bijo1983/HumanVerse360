@@ -1,15 +1,15 @@
 import { useState, useRef } from 'react';
-import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X } from 'lucide-react';
+import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2 } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
-  useApprovePayrollRun, usePayrollSettings,
+  useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun,
 } from '../../hooks/usePayroll';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { Table, StatCard } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/Badge';
-import { Modal } from '../../components/ui/Modal';
+import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { FormField, Select } from '../../components/ui/Form';
 import { formatCurrency } from '../../lib/calculations';
 import PayrollBulkGrid from './PayrollBulkGrid';
@@ -18,12 +18,14 @@ import SalarySlip from './SalarySlip';
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 export default function PayrollPage() {
-  const { companyId } = useAuth();
+  const { companyId, canDeletePayroll } = useAuth();
   const [showNew, setShowNew] = useState(false);
   const [editRun, setEditRun] = useState(null);
   const [slipEmployee, setSlipEmployee] = useState(null);
+  const [deletingRun, setDeletingRun] = useState(null);
 
   const { data: runs = [], isLoading } = usePayrollRuns(companyId);
+  const deleteRun = useDeletePayrollRun(companyId);
 
   const columns = [
     { header: 'Period', key: 'month', render: (v, row) => <span className="font-medium">{MONTHS[v - 1]} {row.year}</span> },
@@ -35,10 +37,21 @@ export default function PayrollPage() {
     {
       header: 'Actions', key: 'id',
       render: (_, row) => (
-        <button onClick={() => setEditRun(row)} className="btn-ghost py-1 px-2 text-xs">
-          <Eye className="w-3.5 h-3.5" />
-          {row.status === 'Draft' ? 'Edit Draft' : 'View'}
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setEditRun(row)} className="btn-ghost py-1 px-2 text-xs">
+            <Eye className="w-3.5 h-3.5" />
+            {row.status === 'Draft' ? 'Edit Draft' : 'View'}
+          </button>
+          {canDeletePayroll && (
+            <button
+              onClick={() => setDeletingRun(row)}
+              className="p-1.5 hover:bg-error-50 rounded text-secondary-400 hover:text-error-600 transition-colors"
+              title={`Delete ${row.status} run`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       ),
     },
   ];
@@ -85,6 +98,20 @@ export default function PayrollPage() {
       {slipEmployee && (
         <SalarySlip employee={slipEmployee} onClose={() => setSlipEmployee(null)} />
       )}
+      <ConfirmModal
+        isOpen={!!deletingRun}
+        onClose={() => setDeletingRun(null)}
+        onConfirm={async () => { await deleteRun.mutateAsync(deletingRun.id); setDeletingRun(null); }}
+        loading={deleteRun.isPending}
+        title="Delete Payroll Run"
+        confirmText="Delete"
+        confirmVariant="danger"
+        message={
+          deletingRun?.status === 'Approved'
+            ? `This will permanently delete the approved payroll run for ${MONTHS[(deletingRun?.month ?? 1) - 1]} ${deletingRun?.year} and all its line items. This cannot be undone.`
+            : `Delete draft payroll for ${MONTHS[(deletingRun?.month ?? 1) - 1]} ${deletingRun?.year}? All unsaved data will be lost.`
+        }
+      />
     </div>
   );
 }

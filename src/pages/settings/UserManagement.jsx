@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Users, UserPlus, Edit, Shield, UserCheck, Save, Mail, Copy, Check,
   ChevronDown, Search, DollarSign, EyeOff, Eye, Clock, XCircle,
-  ToggleLeft, ToggleRight, Info,
+  ToggleLeft, ToggleRight, Info, Trash2,
 } from 'lucide-react';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
@@ -208,9 +208,9 @@ function useRevokeInvitation(companyId) {
 function useUpdateUser(companyId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, role, is_active, show_salary }) => {
+    mutationFn: async ({ id, role, is_active, show_salary, can_delete_payroll }) => {
       const { error } = await supabase.from('company_users')
-        .update({ role, is_active, show_salary }).eq('id', id);
+        .update({ role, is_active, show_salary, can_delete_payroll }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['company-users', companyId] }),
@@ -278,6 +278,16 @@ export default function UserManagement() {
           {v ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           {v ? 'Visible' : 'Hidden'}
         </span>
+      ),
+    },
+    {
+      header: 'Delete Payroll', key: 'can_delete_payroll',
+      render: (v, row) => row.role === 'admin' || v ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-error-600">
+          <Trash2 className="w-3.5 h-3.5" /> Allowed
+        </span>
+      ) : (
+        <span className="text-xs text-secondary-400">Denied</span>
       ),
     },
     {
@@ -755,6 +765,7 @@ function EditUserModal({ companyId, user, onClose }) {
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
   const [showSalary, setShowSalary] = useState(user.show_salary);
+  const [canDeletePayroll, setCanDeletePayroll] = useState(user.can_delete_payroll ?? false);
 
   function handleRoleChange(r) {
     setRole(r);
@@ -763,7 +774,7 @@ function EditUserModal({ companyId, user, onClose }) {
 
   async function save() {
     try {
-      await updateUser.mutateAsync({ id: user.id, role, is_active: isActive, show_salary: showSalary });
+      await updateUser.mutateAsync({ id: user.id, role, is_active: isActive, show_salary: showSalary, can_delete_payroll: canDeletePayroll });
       onClose();
     } catch (e) { alert(e.message); }
   }
@@ -798,6 +809,20 @@ function EditUserModal({ companyId, user, onClose }) {
             <span className="flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5" /> Salary Data Access</span>
           </label>
           <SalaryToggle value={showSalary} onChange={setShowSalary} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-secondary-700 mb-1">
+            <span className="flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Payroll Delete Permission</span>
+          </label>
+          <button type="button" onClick={() => setCanDeletePayroll(v => !v)}
+            className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg border text-left text-sm transition-colors ${
+              canDeletePayroll
+                ? 'bg-error-50 border-error-300 text-error-700'
+                : 'bg-white border-secondary-200 text-secondary-500 hover:border-secondary-300'
+            }`}>
+            <Trash2 className="w-4 h-4 flex-shrink-0" />
+            {canDeletePayroll ? 'Can delete draft & approved payroll runs' : 'Cannot delete payroll runs'}
+          </button>
         </div>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="rounded" />
