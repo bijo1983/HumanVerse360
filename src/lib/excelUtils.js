@@ -2,6 +2,8 @@
 
 let _xlsxPromise = null;
 
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 function loadXLSX() {
   if (_xlsxPromise) return _xlsxPromise;
   if (typeof window !== 'undefined' && window.XLSX) {
@@ -16,6 +18,107 @@ function loadXLSX() {
     document.head.appendChild(script);
   });
   return _xlsxPromise;
+}
+
+// ── Payroll export ────────────────────────────────────────────────────────────
+
+export async function exportPayrollToExcel(run, items, companyName) {
+  const XLSX = await loadXLSX();
+  const period = `${MONTHS[run.month - 1]} ${run.year}`;
+  const safeCompany = companyName || 'Company';
+
+  const headers = [
+    'Employee ID', 'Employee Name', 'Nationality', 'Department', 'Position',
+    'Basic Salary', 'Housing', 'Transport', 'Food', 'Other Allowances',
+    'OT Hours', 'OT Amount', 'Bonus', 'Gross Salary',
+    'GOSI (Employee)', 'GOSI (Employer)',
+    'Loan Deduction', 'Other Deductions', 'Total Deductions',
+    'Net Salary', 'Working Days', 'Leave Days', 'Absent Days',
+  ];
+
+  const dataRows = items.map(item => {
+    const emp = item.employees || {};
+    return [
+      emp.employee_id || '',
+      `${emp.first_name || ''} ${emp.last_name || ''}`.trim(),
+      emp.nationality || '',
+      emp.department_name || '',
+      emp.position_title || '',
+      item.basic_salary || 0,
+      item.housing_allowance || 0,
+      item.transport_allowance || 0,
+      item.food_allowance || 0,
+      item.other_allowances || 0,
+      item.overtime_hours || 0,
+      item.overtime_amount || 0,
+      item.bonus || 0,
+      item.gross_salary || 0,
+      item.gosi_employee || 0,
+      item.gosi_employer || 0,
+      item.loan_deduction || 0,
+      item.other_deductions || 0,
+      item.total_deductions || 0,
+      item.net_salary || 0,
+      item.working_days || 0,
+      item.leave_days || 0,
+      item.absent_days || 0,
+    ];
+  });
+
+  const totals = items.reduce(
+    (acc, i) => ({
+      gross: acc.gross + (i.gross_salary || 0),
+      gosiEmp: acc.gosiEmp + (i.gosi_employee || 0),
+      gosiEr: acc.gosiEr + (i.gosi_employer || 0),
+      ded: acc.ded + (i.total_deductions || 0),
+      net: acc.net + (i.net_salary || 0),
+    }),
+    { gross: 0, gosiEmp: 0, gosiEr: 0, ded: 0, net: 0 }
+  );
+
+  const totalsRow = [
+    '', 'TOTAL', '', '', '',
+    items.reduce((s, i) => s + (i.basic_salary || 0), 0), '', '', '', '',
+    '', '', '',
+    totals.gross, totals.gosiEmp, totals.gosiEr, '', '', totals.ded, totals.net,
+    '', '', '',
+  ];
+
+  const aoa = [
+    [safeCompany],
+    [`Payroll Run – ${period}`],
+    [`Generated: ${new Date().toLocaleDateString()}`],
+    [],
+    headers,
+    ...dataRows,
+    [],
+    totalsRow,
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [14, 24, 14, 20, 20, 14, 12, 12, 10, 14, 10, 12, 10, 14, 14, 14, 14, 14, 14, 14, 12, 12, 12].map(w => ({ wch: w }));
+
+  // Summary sheet
+  const summaryAoa = [
+    [safeCompany],
+    [`Payroll Summary – ${period}`],
+    [],
+    ['Metric', 'Value'],
+    ['Total Employees', items.length],
+    ['Total Gross (BHD)', totals.gross],
+    ['Total GOSI – Employee (BHD)', totals.gosiEmp],
+    ['Total GOSI – Employer (BHD)', totals.gosiEr],
+    ['Total Deductions (BHD)', totals.ded],
+    ['Total Net Pay (BHD)', totals.net],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+  wsSummary['!cols'] = [{ wch: 32 }, { wch: 18 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll Detail');
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  XLSX.writeFile(wb, `payroll_${run.year}_${String(run.month).padStart(2, '0')}_${safeCompany.replace(/\s+/g, '_')}.xlsx`);
 }
 
 // ── Column definitions for employee import/export ────────────────────────────

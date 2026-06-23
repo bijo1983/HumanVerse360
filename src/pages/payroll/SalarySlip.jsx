@@ -1,29 +1,42 @@
 import { useRef } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatDate } from '../../lib/calculations';
-import { Printer, Download } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Printer } from 'lucide-react';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 export default function SalarySlip({ employee, onClose }) {
   const { item, run } = employee;
   const emp = item?.employees;
+  const { company } = useAuth();
   const printRef = useRef();
+
+  const companyName = company?.name || 'Company';
+  const logoUrl = company?.logo_url || null;
 
   const handlePrint = () => {
     const content = printRef.current.innerHTML;
     const win = window.open('', '_blank');
     win.document.write(`
-      <html><head><title>Salary Slip</title>
+      <html><head><title>Salary Slip – ${companyName}</title>
       <style>
         body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #e2e8f0; padding: 6px 10px; }
         th { background: #f8fafc; font-weight: 600; text-align: left; }
         .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { font-size: 20px; color: #1e3a8a; }
+        .header img { max-height: 60px; margin-bottom: 8px; }
+        .header h1 { font-size: 20px; color: #1e3a8a; margin: 0; }
         .row-total { font-weight: bold; background: #f0fdf4; }
         .deduction { color: #dc2626; }
+        .net-box { background: #1e3a8a; color: white; border-radius: 8px; padding: 16px; text-align: center; }
+        .net-box p { margin: 2px 0; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .info-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+        .info-label { color: #94a3b8; min-width: 140px; flex-shrink: 0; }
+        .info-value { font-weight: 600; color: #1e293b; }
+        .footer-note { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 16px; }
       </style></head><body>${content}</body></html>
     `);
     win.document.close();
@@ -43,7 +56,7 @@ export default function SalarySlip({ employee, onClose }) {
   ].filter(i => i.amount > 0);
 
   const deductionBreakdown = [
-    { label: 'GOSI (Employee 7%)', amount: item.gosi_employee },
+    { label: 'GOSI (Employee)', amount: item.gosi_employee },
     { label: 'Loan Deduction', amount: item.loan_deduction },
     { label: 'Other Deductions', amount: item.other_deductions },
   ].filter(i => i.amount > 0);
@@ -59,12 +72,20 @@ export default function SalarySlip({ employee, onClose }) {
       <div ref={printRef}>
         {/* Header */}
         <div className="header text-center mb-6 pb-4 border-b border-secondary-200">
-          <h1 className="text-xl font-bold text-primary-900">Humanverse360</h1>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={companyName}
+              className="h-12 mx-auto mb-2 object-contain"
+              onError={e => { e.target.style.display = 'none'; }}
+            />
+          )}
+          <h1 className="text-xl font-bold text-primary-900">{companyName}</h1>
           <p className="text-sm text-secondary-500">Salary Slip – {MONTHS[run.month - 1]} {run.year}</p>
         </div>
 
         {/* Employee Info */}
-        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+        <div className="info-grid grid grid-cols-2 gap-4 mb-6 text-sm">
           <div className="space-y-1.5">
             {[
               ['Employee Name', `${emp?.first_name} ${emp?.last_name}`],
@@ -72,9 +93,9 @@ export default function SalarySlip({ employee, onClose }) {
               ['Department', emp?.department_name],
               ['Designation', emp?.position_title],
             ].map(([k, v]) => (
-              <div key={k} className="flex gap-2">
-                <span className="text-secondary-400 w-36 flex-shrink-0">{k}:</span>
-                <span className="font-medium text-secondary-800">{v || '–'}</span>
+              <div key={k} className="info-row flex gap-2">
+                <span className="info-label text-secondary-400 w-36 flex-shrink-0">{k}:</span>
+                <span className="info-value font-medium text-secondary-800">{v || '–'}</span>
               </div>
             ))}
           </div>
@@ -85,9 +106,9 @@ export default function SalarySlip({ employee, onClose }) {
               ['Leave Days', item.leave_days || 0],
               ['Absent Days', item.absent_days || 0],
             ].map(([k, v]) => (
-              <div key={k} className="flex gap-2">
-                <span className="text-secondary-400 w-36 flex-shrink-0">{k}:</span>
-                <span className="font-medium text-secondary-800">{v}</span>
+              <div key={k} className="info-row flex gap-2">
+                <span className="info-label text-secondary-400 w-36 flex-shrink-0">{k}:</span>
+                <span className="info-value font-medium text-secondary-800">{v}</span>
               </div>
             ))}
           </div>
@@ -126,14 +147,14 @@ export default function SalarySlip({ employee, onClose }) {
         </table>
 
         {/* Net Pay */}
-        <div className="bg-primary-900 text-white rounded-xl p-4 text-center">
+        <div className="net-box bg-primary-900 text-white rounded-xl p-4 text-center">
           <p className="text-sm text-primary-200">Net Salary Payable</p>
           <p className="text-2xl font-bold mt-1">{formatCurrency(item.net_salary)}</p>
           <p className="text-xs text-primary-300 mt-0.5">Bahraini Dinar</p>
         </div>
 
         {/* Footer */}
-        <p className="text-xs text-secondary-400 text-center mt-4">
+        <p className="footer-note text-xs text-secondary-400 text-center mt-4">
           This is a computer-generated payslip and does not require a signature. · Generated on {formatDate(new Date())}
         </p>
       </div>

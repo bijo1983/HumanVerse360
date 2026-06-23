@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2 } from 'lucide-react';
+import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { FormField, Select } from '../../components/ui/Form';
 import { formatCurrency } from '../../lib/calculations';
+import { exportPayrollToExcel } from '../../lib/excelUtils';
 import PayrollBulkGrid from './PayrollBulkGrid';
 import SalarySlip from './SalarySlip';
 
@@ -366,6 +367,17 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
 // ─── Read-only approved run ───────────────────────────────────────────────────
 
 function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
+  const { company } = useAuth();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportPayrollToExcel(run, items, company?.name);
+    } finally {
+      setExporting(false);
+    }
+  };
   const columns = [
     {
       header: 'Employee',
@@ -412,7 +424,13 @@ function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
           <div className="text-sm text-secondary-500">
             {items.length} employees · Gross: <strong>{formatCurrency(run.total_gross)}</strong> · Net: <strong>{formatCurrency(run.total_net)}</strong>
           </div>
-          <button onClick={onClose} className="btn-secondary">Close</button>
+          <div className="flex gap-2">
+            <button onClick={handleExport} disabled={exporting} className="btn-secondary text-sm">
+              <FileSpreadsheet className="w-4 h-4" />
+              {exporting ? 'Exporting…' : 'Export to Excel'}
+            </button>
+            <button onClick={onClose} className="btn-secondary">Close</button>
+          </div>
         </div>
       }
     >
