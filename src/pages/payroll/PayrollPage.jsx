@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
-import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun,
 } from '../../hooks/usePayroll';
 import { useEmployees } from '../../hooks/useEmployees';
+import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
 import { useAuth } from '../../contexts/AuthContext';
 import { Table, StatCard } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/Badge';
@@ -202,6 +203,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const gridRef = useRef();
   const { data: settings } = usePayrollSettings(companyId);
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
+  const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -214,6 +216,18 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
       onClose();
     } catch (e) { alert(e.message); }
   };
+
+  // Show spinner until leave data resolves so the grid initialises with correct leave days
+  if (leaveLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-secondary-400">Loading leave records…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
@@ -257,6 +271,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
           employees={employees}
           availableEmployees={allEmployees}
           settings={settings}
+          leaveMap={leaveMap}
           month={month}
           year={year}
         />
@@ -272,6 +287,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: items = [], isLoading } = usePayrollLineItems(run.id);
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: settings } = usePayrollSettings(companyId);
+  const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
@@ -338,6 +354,15 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
           </div>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => gridRef.current?.syncLeave(leaveMap)}
+            disabled={busy}
+            className="btn-secondary text-sm"
+            title="Re-read approved leave records and update leave days in the grid"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Sync Leave
+          </button>
           <button onClick={handleSaveDraft} disabled={busy} className="btn-secondary text-sm">
             <Save className="w-4 h-4" />
             {saveDraft.isPending ? 'Saving…' : 'Save Draft'}

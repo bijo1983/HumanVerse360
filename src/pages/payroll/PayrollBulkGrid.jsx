@@ -36,7 +36,12 @@ function recompute(row, settings, dim) {
   return { ...row, days_worked: dw, leave_days: ld, absent_days: absent, overtime_amount: otAmt, gross_salary: gross, gosi_employee: gosiEmp, gosi_employer: gosiEr, total_deductions: totalDed, net_salary: net };
 }
 
-function makeRowFromEmployee(emp, dim) {
+function makeRowFromEmployee(emp, dim, leaveMap = {}) {
+  const leaveInfo = leaveMap[emp.id] || { days: 0, unpaidDays: 0 };
+  const leaveDays = leaveInfo.days || 0;
+  // Paid leave: days_worked stays full (no salary deduction).
+  // Unpaid leave: reduce days_worked by the unpaid portion.
+  const daysWorked = Math.max(0, dim - (leaveInfo.unpaidDays || 0));
   return {
     employee_id: emp.id,
     first_name: emp.first_name || '',
@@ -53,8 +58,8 @@ function makeRowFromEmployee(emp, dim) {
     bonus: 0,
     loan_deduction: 0,
     other_deductions: 0,
-    leave_days: 0,
-    days_worked: dim,
+    leave_days: leaveDays,
+    days_worked: daysWorked,
   };
 }
 
@@ -143,12 +148,12 @@ function fmtNum(v, col) {
   return v != null && !isNaN(v) ? Number(v).toFixed(3) : '–';
 }
 
-const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, month, year, existingItems, readOnly = false }, ref) {
+const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, leaveMap = {}, month, year, existingItems, readOnly = false }, ref) {
   const dim = getDaysInMonth(new Date(year, month - 1, 1));
 
   const [rows, setRows] = useState(() => {
     if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim));
-    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim), settings, dim));
+    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim, leaveMap), settings, dim));
   });
 
   // Re-run GOSI/OT calculations whenever settings finish loading from the server
@@ -171,9 +176,15 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
     getRows: () => rows,
     addEmployee: (emp) => setRows(prev => {
       if (prev.find(r => r.employee_id === emp.id)) return prev;
-      return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim)];
+      return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap), settings, dim)];
     }),
     removeRow: (employeeId) => setRows(prev => prev.filter(r => r.employee_id !== employeeId)),
+    syncLeave: (newLeaveMap) => setRows(prev => prev.map(row => {
+      const info = newLeaveMap[row.employee_id] || { days: 0, unpaidDays: 0 };
+      const leaveDays = info.days || 0;
+      const daysWorked = Math.max(0, dim - (info.unpaidDays || 0));
+      return recompute({ ...row, leave_days: leaveDays, days_worked: daysWorked }, settings, dim);
+    })),
   }));
 
   const updateField = (idx, key, rawVal) => {

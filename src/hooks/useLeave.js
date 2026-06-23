@@ -166,6 +166,68 @@ export function useUpdateLeaveRequest() {
   });
 }
 
+// Returns { [employee_id]: leave_days_in_month } for all Approved leaves
+// overlapping the given payroll month. is_paid leaves keep days_worked intact;
+// unpaid leaves reduce it — exposed as { days, unpaidDays } per employee.
+export function useApprovedLeaveForMonth(companyId, month, year) {
+  return useQuery({
+    queryKey: ['approved-leave-month', companyId, month, year],
+    queryFn: async () => {
+      if (!companyId || !month || !year) return {};
+
+      const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).toISOString().split('T')[0];
+
+      // Fetch all approved leaves that overlap this month
+      const { data: requests, error } = await supabase
+        .from('leave_requests')
+        .select('employee_id, days_requested, start_date, end_date, leave_type_id')
+        .eq('company_id', companyId)
+        .eq('status', 'Approved')
+        .lte('start_date', lastDay)
+        .gte('end_date', firstDay);
+      if (error) throw error;
+      if (!requests?.length) return {};
+
+      // Fetch is_paid for each leave type
+      const ltIds = [...new Set(requests.map(r => r.leave_type_id).filter(Boolean))];
+      const { data: types } = await supabase
+        .from('leave_types')
+        .select('id, is_paid')
+        .in('id', ltIds);
+      const ltMap = Object.fromEntries((types || []).map(t => [t.id, t]));
+
+      const firstDate = new Date(firstDay + 'T00:00:00');
+      const lastDate  = new Date(lastDay  + 'T00:00:00');
+
+      const map = {};
+      for (const req of requests) {
+        const isPaid = ltMap[req.leave_type_id]?.is_paid ?? true;
+        const totalDays = Number(req.days_requested) || 0;
+
+        // Prorate if the leave spans across a month boundary
+        let daysThisMonth = totalDays;
+        const leaveStart = new Date(req.start_date + 'T00:00:00');
+        const leaveEnd   = new Date(req.end_date   + 'T00:00:00');
+        if (leaveStart < firstDate || leaveEnd > lastDate) {
+          const totalCal   = Math.round((leaveEnd - leaveStart) / 86400000) + 1;
+          const overlapStart = leaveStart < firstDate ? firstDate : leaveStart;
+          const overlapEnd   = leaveEnd   > lastDate  ? lastDate  : leaveEnd;
+          const overlapCal = Math.round((overlapEnd - overlapStart) / 86400000) + 1;
+          daysThisMonth = Math.round((totalDays * overlapCal) / totalCal);
+        }
+        if (!daysThisMonth) continue;
+
+        if (!map[req.employee_id]) map[req.employee_id] = { days: 0, unpaidDays: 0 };
+        map[req.employee_id].days += daysThisMonth;
+        if (!isPaid) map[req.employee_id].unpaidDays += daysThisMonth;
+      }
+      return map;
+    },
+    enabled: !!companyId && !!month && !!year,
+  });
+}
+
 export function useInitLeaveBalances(companyId) {
   const qc = useQueryClient();
   return useMutation({
