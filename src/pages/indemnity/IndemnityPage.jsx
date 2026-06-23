@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calculator, FileText, TrendingDown } from 'lucide-react';
+import { Calculator, FileText, TrendingDown, Info } from 'lucide-react';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { FormField, Select, Input } from '../../components/ui/Form';
@@ -38,6 +38,7 @@ function IndemnityCalculator() {
   const [result, setResult] = useState(null);
 
   const selectedEmp = employees.find(e => e.id === empId);
+  const isBahraini = selectedEmp?.nationality?.toLowerCase() === 'bahraini';
 
   const calculate = () => {
     if (!selectedEmp) return;
@@ -47,7 +48,12 @@ function IndemnityCalculator() {
     const years = getServiceYears(joining, endDate);
     const months = getServiceMonths(joining, endDate);
     const days = differenceInDays(parseISO(endDate), parseISO(joining));
-    setResult({ ...res, years, months, days, basicSalary, joining });
+    // GOSI rates based on nationality
+    const gosiEmpRate  = isBahraini ? 0.08 : 0.01;
+    const gosiErRate   = isBahraini ? 0.13 : 0.03;
+    const gosiEmployee = basicSalary * gosiEmpRate;
+    const gosiEmployer = basicSalary * gosiErRate;
+    setResult({ ...res, years, months, days, basicSalary, joining, gosiEmployee, gosiEmployer, gosiEmpRate, gosiErRate });
   };
 
   return (
@@ -71,6 +77,12 @@ function IndemnityCalculator() {
               <div className="flex justify-between"><span className="text-secondary-400">Basic Salary:</span><span className="font-semibold">{formatCurrency(selectedEmp.basic_salary)}</span></div>
               <div className="flex justify-between"><span className="text-secondary-400">Joining Date:</span><span className="font-semibold">{formatDate(selectedEmp.joining_date)}</span></div>
               <div className="flex justify-between"><span className="text-secondary-400">Service Years:</span><span className="font-semibold">{getServiceYears(selectedEmp.joining_date, endDate)} years</span></div>
+              <div className="flex justify-between">
+                <span className="text-secondary-400">Nationality:</span>
+                <span className={`font-semibold px-2 py-0.5 rounded text-xs ${isBahraini ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {selectedEmp.nationality || 'Not specified'} · {isBahraini ? 'GOSI Pension' : 'GOSI Work Injury'}
+                </span>
+              </div>
             </div>
           )}
 
@@ -96,7 +108,7 @@ function IndemnityCalculator() {
         {result ? (
           <div className="space-y-4">
             <div className="card p-6 bg-gradient-to-br from-primary-900 to-primary-800 text-white">
-              <p className="text-primary-200 text-sm">Total Indemnity Amount</p>
+              <p className="text-primary-200 text-sm">Total Indemnity Amount (Article 116)</p>
               <p className="text-4xl font-bold mt-1">{formatCurrency(result.amount)}</p>
               <p className="text-primary-300 text-sm mt-2">{result.breakdown}</p>
             </div>
@@ -106,6 +118,7 @@ function IndemnityCalculator() {
               <div className="space-y-3 text-sm">
                 {[
                   ['Employee', `${selectedEmp?.first_name} ${selectedEmp?.last_name}`],
+                  ['Nationality', selectedEmp?.nationality || 'Not specified'],
                   ['Basic Salary (Daily Rate)', `${formatCurrency(result.basicSalary)} ÷ 30 = ${formatCurrency(result.basicSalary / 30)}/day`],
                   ['Total Service', `${result.years} years, ${result.months % 12} months (${result.days} days)`],
                   ['Termination Type', terminationType],
@@ -118,6 +131,34 @@ function IndemnityCalculator() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* GOSI summary panel */}
+            <div className={`p-4 rounded-xl border text-sm space-y-2 ${isBahraini ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              <div className="flex items-center gap-2 font-semibold">
+                <Info className="w-4 h-4 flex-shrink-0" />
+                {isBahraini ? 'GOSI – Pension & Unemployment (Monthly)' : 'GOSI – Work Injury Insurance (Monthly)'}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/60 rounded p-2">
+                  <p className="text-xs font-semibold mb-1">Employee Contribution ({(result.gosiEmpRate * 100).toFixed(0)}%)</p>
+                  <p className="font-mono font-bold">{formatCurrency(result.gosiEmployee)}</p>
+                </div>
+                <div className="bg-white/60 rounded p-2">
+                  <p className="text-xs font-semibold mb-1">Employer Contribution ({(result.gosiErRate * 100).toFixed(0)}%)</p>
+                  <p className="font-mono font-bold">{formatCurrency(result.gosiEmployer)}</p>
+                </div>
+              </div>
+              {isBahraini && (
+                <p className="text-xs">
+                  Bahraini employees are registered with SIO (GOSI). Article 116 indemnity applies in addition to GOSI pension entitlements.
+                </p>
+              )}
+              {!isBahraini && (
+                <p className="text-xs">
+                  Expat employees are covered for work injury only. Article 116 indemnity is fully payable by the employer upon end of service.
+                </p>
+              )}
             </div>
 
             {terminationType === 'Resignation' && result.years < 1 && (
@@ -149,11 +190,12 @@ function FinalSettlement() {
   const [result, setResult] = useState(null);
 
   const selectedEmp = employees.find(e => e.id === empId);
+  const isBahraini = selectedEmp?.nationality?.toLowerCase() === 'bahraini';
 
   const calculate = () => {
     if (!selectedEmp) return;
     const basic = selectedEmp.basic_salary || 0;
-    const gross = (selectedEmp.basic_salary || 0) + (selectedEmp.housing_allowance || 0) +
+    const gross = basic + (selectedEmp.housing_allowance || 0) +
       (selectedEmp.transport_allowance || 0) + (selectedEmp.food_allowance || 0) + (selectedEmp.other_allowances || 0);
     const { amount: indemnity, breakdown } = calculateIndemnity(basic, selectedEmp.joining_date, endDate, terminationType);
     const endDateObj = parseISO(endDate);
@@ -162,11 +204,18 @@ function FinalSettlement() {
     const leavePay = (basic / daysInMonth) * unusedLeave;
     const noticePayDays = getServiceYears(selectedEmp.joining_date, endDate) >= 3 ? 30 : 14;
     const noticePay = dailyRate * noticePayDays;
+    // GOSI: Bahraini 8% employee, Expat 1% employee
+    const gosiRate = isBahraini ? 0.08 : 0.01;
+    const gosiDeduction = basic * gosiRate;
     const totalPayable = indemnity + leavePay + parseFloat(pendingExpenses || 0) + noticePay;
-    const totalDeductions = parseFloat(loanBalance || 0);
+    const totalDeductions = parseFloat(loanBalance || 0) + gosiDeduction;
     const netSettlement = totalPayable - totalDeductions;
 
-    setResult({ indemnity, breakdown, leavePay, noticePay, noticePayDays, totalPayable, totalDeductions, netSettlement, basic, gross, unusedLeave });
+    setResult({
+      indemnity, breakdown, leavePay, noticePay, noticePayDays,
+      totalPayable, totalDeductions, netSettlement,
+      basic, gross, unusedLeave, gosiDeduction, gosiRate,
+    });
   };
 
   return (
@@ -236,10 +285,18 @@ function FinalSettlement() {
                 {result.totalDeductions > 0 && (
                   <>
                     <div className="text-xs font-semibold text-secondary-400 uppercase mt-3 mb-2">Deductions</div>
-                    <div className="flex justify-between py-1.5 border-b border-secondary-100">
-                      <span className="text-secondary-600">Outstanding Loan</span>
-                      <span className="font-semibold font-mono text-error-600">{formatCurrency(result.totalDeductions)}</span>
-                    </div>
+                    {result.gosiDeduction > 0 && (
+                      <div className="flex justify-between py-1.5 border-b border-secondary-100">
+                        <span className="text-secondary-600">GOSI – Employee ({(result.gosiRate * 100).toFixed(0)}%)</span>
+                        <span className="font-semibold font-mono text-error-600">{formatCurrency(result.gosiDeduction)}</span>
+                      </div>
+                    )}
+                    {parseFloat(loanBalance || 0) > 0 && (
+                      <div className="flex justify-between py-1.5 border-b border-secondary-100">
+                        <span className="text-secondary-600">Outstanding Loan</span>
+                        <span className="font-semibold font-mono text-error-600">{formatCurrency(parseFloat(loanBalance))}</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -319,6 +376,7 @@ function LaborLawRules() {
         'Total: Employee 8% + Employer 13% of basic salary',
         'Administered by SIO (Social Insurance Organisation)',
         'Based on basic salary only, excludes allowances',
+        'Article 116 indemnity applies in addition to GOSI pension',
       ],
     },
     {

@@ -45,8 +45,10 @@ export function useCreatePayrollRun(companyId) {
       const items = employees.map(emp => {
         const gross = (emp.basic_salary || 0) + (emp.housing_allowance || 0) + (emp.transport_allowance || 0) + (emp.food_allowance || 0) + (emp.other_allowances || 0);
         const isBahraini = emp.nationality?.toLowerCase() === 'bahraini';
-        const gosi_emp = isBahraini ? (emp.basic_salary || 0) * 0.07 : 0;
-        const gosi_er = isBahraini ? (emp.basic_salary || 0) * 0.12 : 0;
+        // Bahraini: Pension 7% + Unemployment 1% = 8% employee; 12% + 1% = 13% employer
+        // Expat:    Work Injury 1% employee; 3% employer
+        const gosi_emp = isBahraini ? (emp.basic_salary || 0) * 0.08 : (emp.basic_salary || 0) * 0.01;
+        const gosi_er  = isBahraini ? (emp.basic_salary || 0) * 0.13 : (emp.basic_salary || 0) * 0.03;
         return {
           payroll_run_id: run.id,
           employee_id: emp.id,
