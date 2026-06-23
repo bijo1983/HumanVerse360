@@ -1,4 +1,4 @@
-import { useState, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { getDaysInMonth } from 'date-fns';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -7,9 +7,10 @@ function r3(n) { return Math.round(Number(n || 0) * 1000) / 1000; }
 
 function recompute(row, settings, dim) {
   const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
-  const empPct = isBahraini ? (Number(settings?.bahraini_employee_gosi_pct) || 8) / 100 : (Number(settings?.expat_employee_gosi_pct) || 1) / 100;
-  const erPct  = isBahraini ? (Number(settings?.bahraini_employer_gosi_pct) || 13) / 100 : (Number(settings?.expat_employer_gosi_pct) || 3) / 100;
-  const otRate = Number(settings?.ot_rate_normal) || 1.25;
+  const pct = (val, def) => (val != null && val !== '' ? Number(val) : def) / 100;
+  const empPct = isBahraini ? pct(settings?.bahraini_employee_gosi_pct, 8) : pct(settings?.expat_employee_gosi_pct, 1);
+  const erPct  = isBahraini ? pct(settings?.bahraini_employer_gosi_pct, 13) : pct(settings?.expat_employer_gosi_pct, 3);
+  const otRate = settings?.ot_rate_normal != null ? Number(settings.ot_rate_normal) : 1.25;
 
   const basic  = Number(row.basic_salary) || 0;
   const dw     = Number(row.days_worked) >= 0 ? Number(row.days_worked) : dim;
@@ -149,6 +150,22 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
     if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim));
     return employees.map(emp => recompute(makeRowFromEmployee(emp, dim), settings, dim));
   });
+
+  // Re-run GOSI/OT calculations whenever settings finish loading from the server
+  const prevSettingsRef = useRef(settings);
+  useEffect(() => {
+    const prev = prevSettingsRef.current;
+    const changed =
+      prev?.expat_employee_gosi_pct !== settings?.expat_employee_gosi_pct ||
+      prev?.expat_employer_gosi_pct !== settings?.expat_employer_gosi_pct ||
+      prev?.bahraini_employee_gosi_pct !== settings?.bahraini_employee_gosi_pct ||
+      prev?.bahraini_employer_gosi_pct !== settings?.bahraini_employer_gosi_pct ||
+      prev?.ot_rate_normal !== settings?.ot_rate_normal;
+    if (changed) {
+      setRows(prev => prev.map(row => recompute(row, settings, dim)));
+      prevSettingsRef.current = settings;
+    }
+  }, [settings, dim]);
 
   useImperativeHandle(ref, () => ({
     getRows: () => rows,
