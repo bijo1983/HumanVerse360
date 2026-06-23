@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { PLANS, formatPlanPrice } from '../../lib/plans';
-import { Crown, Check, Users, Calendar, CreditCard, Building2, Star, AlertTriangle, CheckCircle } from 'lucide-react';
+import {
+  Crown, Check, Users, CreditCard, Building2, Star,
+  AlertTriangle, CheckCircle, XCircle, Loader2, ExternalLink,
+} from 'lucide-react';
 import { formatDate } from '../../lib/calculations';
 import { Badge } from '../../components/ui/Badge';
 
@@ -18,50 +21,130 @@ function usePlans() {
   });
 }
 
+const PLAN_STYLES = {
+  free:   { ring: 'ring-secondary-200', bg: 'bg-white', headerBg: 'bg-secondary-50',  priceColor: 'text-secondary-900' },
+  small:  { ring: 'ring-blue-200',      bg: 'bg-white', headerBg: 'bg-blue-50',        priceColor: 'text-blue-900' },
+  medium: { ring: 'ring-primary-400',   bg: 'bg-white', headerBg: 'bg-primary-50',     priceColor: 'text-primary-900' },
+  large:  { ring: 'ring-secondary-700', bg: 'bg-secondary-900', headerBg: 'bg-secondary-800', priceColor: 'text-white' },
+};
+
 export default function SubscriptionPage() {
   const { company, subscription, companyId, refreshCompany } = useAuth();
   const { data: plans = [] } = usePlans();
+
   const [upgrading, setUpgrading] = useState(null);
-  const [success, setSuccess] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState(null); // null | 'verifying' | 'success' | 'failed'
+  const [paymentMessage, setPaymentMessage] = useState('');
 
   const currentPlanCode = subscription?.code || 'free';
 
-  const handleUpgrade = async (plan) => {
-    if (plan.code === currentPlanCode) return;
+  // On mount: check if Tap redirected back with a charge ID
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tapId = params.get('tap_id');
+    if (!tapId) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    verifyCharge(tapId);
+  }, []);
+
+  async function verifyCharge(chargeId) {
+    setPaymentStatus('verifying');
+    setPaymentMessage('Verifying your payment…');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('tap-verify-charge', {
+        body: { charge_id: chargeId },
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      if (res.error) throw res.error;
+      const result = res.data;
+      if (!result?.success) throw new Error(result?.error || 'Verification failed');
+
+      if (result.captured) {
+        await refreshCompany();
+        setPaymentStatus('success');
+        setPaymentMessage('Payment successful! Your subscription has been activated.');
+      } else {
+        setPaymentStatus('failed');
+        setPaymentMessage(`Payment ${result.status?.toLowerCase() || 'was not completed'}. No charge was made.`);
+      }
+    } catch (e) {
+      setPaymentStatus('failed');
+      setPaymentMessage(e.message || 'Could not verify payment. Please contact support.');
+    }
+  }
+
+  async function handleUpgrade(plan) {
+    if (plan.code === currentPlanCode || upgrading) return;
+
+    // Free plan — direct downgrade, no payment
+    if (!plan.price_bhd || plan.price_bhd <= 0) {
+      setUpgrading(plan.id);
+      try {
+        const { error } = await supabase.from('companies').update({
+          subscription_plan_id: plan.id,
+          updated_at: new Date().toISOString(),
+        }).eq('id', companyId);
+        if (error) throw error;
+        await refreshCompany();
+        setPaymentStatus('success');
+        setPaymentMessage(`Switched to ${plan.name}.`);
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        setUpgrading(null);
+      }
+      return;
+    }
+
+    // Paid plan — initiate Tap charge
     setUpgrading(plan.id);
     try {
-      const { error } = await supabase.from('companies').update({
-        subscription_plan_id: plan.id,
-        updated_at: new Date().toISOString(),
-      }).eq('id', companyId);
-      if (error) throw error;
-      await refreshCompany();
-      setSuccess(`Successfully upgraded to ${plan.name}!`);
-      setTimeout(() => setSuccess(''), 4000);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('tap-create-charge', {
+        body: { plan_id: plan.id, company_id: companyId },
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      if (res.error) throw res.error;
+      const result = res.data;
+      if (!result?.success) throw new Error(result?.error || 'Failed to create payment');
+      if (!result.checkout_url) throw new Error('No checkout URL returned from payment gateway');
+
+      // Redirect to Tap hosted checkout — user comes back to /subscription?tap_id=...
+      window.location.href = result.checkout_url;
     } catch (e) {
-      alert(e.message);
-    } finally {
+      alert(`Payment error: ${e.message}`);
       setUpgrading(null);
     }
-  };
-
-  const PLAN_STYLES = {
-    free: { ring: 'ring-secondary-200', bg: 'bg-white', headerBg: 'bg-secondary-50', priceColor: 'text-secondary-900' },
-    small: { ring: 'ring-blue-200', bg: 'bg-white', headerBg: 'bg-blue-50', priceColor: 'text-blue-900' },
-    medium: { ring: 'ring-primary-400', bg: 'bg-white', headerBg: 'bg-primary-50', priceColor: 'text-primary-900' },
-    large: { ring: 'ring-secondary-700', bg: 'bg-secondary-900', headerBg: 'bg-secondary-800', priceColor: 'text-white' },
-  };
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-secondary-900">Subscription & Billing</h2>
-        <p className="text-sm text-secondary-500">Manage your Humanverse360 subscription</p>
+        <p className="text-sm text-secondary-500">Manage your HumanVerse360 subscription</p>
       </div>
 
-      {success && (
-        <div className="flex items-center gap-2 p-4 bg-success-50 border border-success-200 rounded-xl text-sm text-success-700 animate-slide-up">
-          <CheckCircle className="w-4 h-4" /> {success}
+      {paymentStatus === 'verifying' && (
+        <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 animate-pulse">
+          <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+          {paymentMessage}
+        </div>
+      )}
+      {paymentStatus === 'success' && (
+        <div className="flex items-center gap-2 p-4 bg-success-50 border border-success-200 rounded-xl text-sm text-success-700">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          {paymentMessage}
+        </div>
+      )}
+      {paymentStatus === 'failed' && (
+        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <XCircle className="w-4 h-4 flex-shrink-0" />
+          {paymentMessage}
         </div>
       )}
 
@@ -117,8 +200,9 @@ export default function SubscriptionPage() {
             const s = PLAN_STYLES[plan.code] || PLAN_STYLES.free;
             const isCurrent = plan.code === currentPlanCode;
             const isLarge = plan.code === 'large';
+            const isPaid = plan.price_bhd > 0;
+            const isLoading = upgrading === plan.id;
             const features = Array.isArray(plan.features) ? plan.features : JSON.parse(plan.features || '[]');
-            const localPlan = PLANS[plan.code];
 
             return (
               <div key={plan.id}
@@ -140,7 +224,8 @@ export default function SubscriptionPage() {
                     <p className={`text-2xl font-bold ${s.priceColor}`}>Free</p>
                   ) : (
                     <p className={`text-2xl font-bold ${s.priceColor}`}>
-                      BHD {plan.price_bhd} <span className={`text-sm font-normal ${isLarge ? 'text-secondary-400' : 'text-secondary-400'}`}>/mo</span>
+                      BHD {plan.price_bhd}
+                      <span className={`text-sm font-normal ml-1 ${isLarge ? 'text-secondary-400' : 'text-secondary-400'}`}>/mo</span>
                     </p>
                   )}
                   <p className={`text-xs mt-1 ${isLarge ? 'text-secondary-400' : 'text-secondary-500'}`}>
@@ -159,18 +244,30 @@ export default function SubscriptionPage() {
                   </ul>
 
                   <button
-                    onClick={() => !isCurrent && handleUpgrade(plan)}
-                    disabled={isCurrent || upgrading === plan.id}
-                    className={`w-full justify-center text-sm py-2 rounded-lg font-medium transition-all ${
+                    onClick={() => handleUpgrade(plan)}
+                    disabled={isCurrent || !!upgrading}
+                    className={`w-full flex items-center justify-center gap-2 text-sm py-2.5 rounded-lg font-medium transition-all ${
                       isCurrent
                         ? 'bg-accent-100 text-accent-700 cursor-default'
-                        : isLarge
-                        ? 'bg-primary-600 text-white hover:bg-primary-700'
                         : 'bg-primary-600 text-white hover:bg-primary-700'
                     } disabled:opacity-60`}
                   >
-                    {upgrading === plan.id ? 'Upgrading...' : isCurrent ? '✓ Current Plan' : plan.code === 'free' ? 'Downgrade' : 'Upgrade'}
+                    {isLoading ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" />Processing…</>
+                    ) : isCurrent ? (
+                      '✓ Current Plan'
+                    ) : isPaid ? (
+                      <><ExternalLink className="w-3.5 h-3.5" />Pay with Tap</>
+                    ) : (
+                      'Downgrade'
+                    )}
                   </button>
+
+                  {isPaid && !isCurrent && (
+                    <p className="text-center text-[10px] text-secondary-400 mt-2">
+                      Visa · Mastercard · Benefit · Apple Pay
+                    </p>
+                  )}
                 </div>
               </div>
             );
@@ -224,7 +321,12 @@ export default function SubscriptionPage() {
 
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-        <p>Plan changes take effect immediately. Downgrading will restrict access to modules not included in your new plan. Contact support for billing questions.</p>
+        <p>
+          Payments are processed securely by <strong>Tap Payments</strong>. You will be redirected to Tap's
+          hosted checkout to complete your payment with Visa, Mastercard, Benefit, or Apple Pay.
+          Subscriptions activate immediately on successful payment.
+          For billing questions contact <strong>info@innovegicit.com</strong>.
+        </p>
       </div>
     </div>
   );
