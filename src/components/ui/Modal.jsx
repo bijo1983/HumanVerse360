@@ -9,11 +9,10 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer })
     full: 'max-w-full mx-4',
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
         className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] flex flex-col animate-slide-up`}
-        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-100">
           <h2 className="text-base font-semibold text-secondary-900">{title}</h2>
