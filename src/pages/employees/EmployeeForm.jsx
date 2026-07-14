@@ -10,29 +10,32 @@ import {
   useEmployeeDependents, useCreateDependent, useUpdateDependent, useDeleteDependent,
 } from '../../hooks/useEmployeeDetails';
 import { useCustomFields, useEmployeeCustomValues, useSaveCustomValues } from '../../hooks/useCustomFields';
-import { useState } from 'react';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
+import { useAddressFormat, useEmployeeAddress, useSaveEmployeeAddress, renderAddressLine } from '../../hooks/useAddressFormat';
+import AddressBlock from '../../components/employees/AddressBlock';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, GraduationCap, Briefcase, Users } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../lib/calculations';
 import { ConfirmModal } from '../../components/ui/Modal';
 import ImageUploadCrop from '../../components/ui/ImageUploadCrop';
 
-const TABS = ['Personal', 'Employment', 'Salary', 'Education', 'Work History', 'Dependents', 'Documents', 'Banking'];
-
-// Country-specific national ID configuration
-const NATIONAL_ID = {
-  BH: { label: 'National ID (CPR)', expiryLabel: 'National ID Expiry', placeholder: '880112345', required: true },
-  SA: { label: 'National ID / Iqama No.', expiryLabel: 'Iqama Expiry Date', placeholder: '2xxxxxxxxx', required: true },
-  AE: { label: 'Emirates ID', expiryLabel: 'Emirates ID Expiry', placeholder: '784-xxxx-xxxxxxx-x', required: true },
-  QA: { label: 'Qatar ID (QID)', expiryLabel: 'QID Expiry Date', placeholder: '28xxxxxxxxx', required: true },
-  KW: { label: 'Civil ID', expiryLabel: 'Civil ID Expiry', placeholder: '2xxxxxxxxxx', required: true },
-  OM: { label: 'National ID', expiryLabel: 'National ID Expiry', placeholder: 'xxxxxxxxxx', required: true },
-  default: { label: 'National ID Number', expiryLabel: 'National ID Expiry', placeholder: '', required: false },
-};
+const BASE_TABS = ['Personal', 'Employment', 'Salary', 'Education', 'Work History', 'Dependents', 'Documents', 'Banking'];
 
 export default function EmployeeForm({ employee, onClose }) {
   const { companyId, company } = useAuth();
   const countryCode = company?.country_code || 'BH';
-  const nationalId = NATIONAL_ID[countryCode] || NATIONAL_ID.default;
+  // National ID + employee UI behavior comes from the country configuration
+  const { config } = useCountryConfig();
+  const employeeUi = config.raw?.employee_ui || {};
+  const nationalId = {
+    label: config.identity.nationalIdLabel,
+    expiryLabel: employeeUi.national_id_expiry_label || `${config.identity.nationalIdLabel} Expiry`,
+    placeholder: employeeUi.national_id_placeholder || '',
+    required: employeeUi.national_id_required ?? false,
+    hasExpiry: employeeUi.national_id_has_expiry ?? true,
+    validation: config.identity.nationalIdValidation,
+  };
+  const showImmigration = employeeUi.show_immigration ?? true;
   const [tab, setTab] = useState('Personal');
   const [profilePhoto, setProfilePhoto] = useState(employee?.profile_photo || '');
   const { data: departments = [] } = useDepartments(companyId);
@@ -54,17 +57,43 @@ export default function EmployeeForm({ employee, onClose }) {
   const saveCustomValues = useSaveCustomValues(companyId);
 
   // Custom field state (controlled separately from main form)
-  const [customFieldValues, setCustomFieldValues] = useState(() => {
-    // Pre-fill from existing values on edit
-    const init = {};
-    return init;
-  });
+  const [customFieldValues, setCustomFieldValues] = useState({});
 
-  // Group custom fields by section
-  const customFieldsBySection = customFields.reduce((acc, f) => {
+  // Pre-fill default values for new employees once field definitions load
+  useEffect(() => {
+    if (isEdit || customFields.length === 0) return;
+    setCustomFieldValues(prev => {
+      const next = { ...prev };
+      for (const f of customFields) {
+        if (f.default_value != null && next[f.id] === undefined) next[f.id] = f.default_value;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customFields.length, isEdit]);
+
+  // Group visible custom fields by section
+  const visibleFields = customFields.filter(f => f.is_visible !== false);
+  const customFieldsBySection = visibleFields.reduce((acc, f) => {
     (acc[f.section] = acc[f.section] || []).push(f);
     return acc;
   }, {});
+  // Sections beyond the built-in tabs get their own "Statutory" tab
+  const extraSections = Object.keys(customFieldsBySection).filter(
+    s => !['Personal', 'Documents'].includes(s)
+  );
+  const TABS = extraSections.length > 0
+    ? [...BASE_TABS.slice(0, 2), 'Statutory', ...BASE_TABS.slice(2)]
+    : BASE_TABS;
+
+  // Structured country-specific address
+  const { data: addressFormat } = useAddressFormat(countryCode, companyId);
+  const { data: savedAddress } = useEmployeeAddress(isEdit ? employee.id : null);
+  const [addressData, setAddressData] = useState({});
+  const saveAddress = useSaveEmployeeAddress(companyId);
+  useEffect(() => {
+    if (savedAddress?.address_data) setAddressData(savedAddress.address_data);
+  }, [savedAddress]);
 
   async function onSubmit(data) {
     if (!data.employee_id) {
@@ -89,6 +118,11 @@ export default function EmployeeForm({ employee, onClose }) {
       if (data[f] === '' || data[f] === undefined) data[f] = null;
     }
     try {
+      // Keep the legacy one-line address in sync with the structured address
+      const hasStructuredAddress = addressFormat && Object.values(addressData).some(v => v);
+      if (hasStructuredAddress) {
+        data.address = renderAddressLine(addressFormat.display_template, addressData) || data.address;
+      }
       let savedId = employee?.id;
       if (isEdit) {
         await updateEmployee.mutateAsync({ id: employee.id, ...data, profile_photo: profilePhoto || null });
@@ -99,6 +133,10 @@ export default function EmployeeForm({ employee, onClose }) {
       // Save custom field values
       if (savedId && Object.keys(customFieldValues).length > 0) {
         await saveCustomValues.mutateAsync({ employeeId: savedId, values: customFieldValues });
+      }
+      // Save structured address
+      if (savedId && hasStructuredAddress) {
+        await saveAddress.mutateAsync({ employeeId: savedId, countryCode, addressData });
       }
       onClose();
     } catch (e) { alert(e.message); }
@@ -171,7 +209,17 @@ export default function EmployeeForm({ employee, onClose }) {
             <FormField label="Work Email"><Input {...register('work_email')} type="email" placeholder="john@company.com" /></FormField>
             <FormField label="Mobile"><Input {...register('mobile')} placeholder="+973 XXXX XXXX" /></FormField>
             <FormField label="Phone"><Input {...register('phone')} placeholder="+973 XXXX XXXX" /></FormField>
-            <FormField label="Address" className="sm:col-span-2"><Textarea {...register('address')} rows={2} /></FormField>
+            {/* Country-specific structured address, falling back to free text */}
+            {addressFormat ? (
+              <>
+                <div className="sm:col-span-2 border-t border-secondary-100 pt-4">
+                  <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-1">Address</p>
+                </div>
+                <AddressBlock format={addressFormat} value={addressData} onChange={setAddressData} />
+              </>
+            ) : (
+              <FormField label="Address" className="sm:col-span-2"><Textarea {...register('address')} rows={2} /></FormField>
+            )}
 
             {/* Country-specific National ID — mandatory for GCC */}
             <div className="sm:col-span-2 border-t border-secondary-100 pt-4">
@@ -179,23 +227,49 @@ export default function EmployeeForm({ employee, onClose }) {
             </div>
             <FormField label={nationalId.label} required={nationalId.required} error={errors.cpr_number?.message}>
               <Input
-                {...register('cpr_number', nationalId.required ? { required: `${nationalId.label} is required` } : {})}
+                {...register('cpr_number', {
+                  ...(nationalId.required ? { required: `${nationalId.label} is required` } : {}),
+                  ...(nationalId.validation
+                    ? { pattern: { value: new RegExp(nationalId.validation), message: `Invalid ${nationalId.label} format` } }
+                    : {}),
+                })}
                 placeholder={nationalId.placeholder}
                 error={errors.cpr_number}
               />
             </FormField>
-            <FormField label={nationalId.expiryLabel} required={nationalId.required} error={errors.cpr_expiry?.message}>
-              <Input
-                {...register('cpr_expiry', nationalId.required ? { required: `${nationalId.expiryLabel} is required` } : {})}
-                type="date"
-                error={errors.cpr_expiry}
-              />
-            </FormField>
+            {nationalId.hasExpiry && (
+              <FormField label={nationalId.expiryLabel} required={nationalId.required} error={errors.cpr_expiry?.message}>
+                <Input
+                  {...register('cpr_expiry', nationalId.required ? { required: `${nationalId.expiryLabel} is required` } : {})}
+                  type="date"
+                  error={errors.cpr_expiry}
+                />
+              </FormField>
+            )}
             {/* Dynamic custom fields for Personal section */}
             <CustomFieldsSection
               fields={customFieldsBySection['Personal'] || []}
+              allFields={visibleFields}
               values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
               onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
+          </div>
+        )}
+        {tab === 'Statutory' && (
+          <div className="space-y-6">
+            {extraSections.sort().map(section => (
+              <div key={section}>
+                <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">
+                  {section} — {config.countryName}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <CustomFieldsSection
+                    fields={customFieldsBySection[section] || []}
+                    allFields={visibleFields}
+                    values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
+                    onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {tab === 'Employment' && (
@@ -213,16 +287,28 @@ export default function EmployeeForm({ employee, onClose }) {
         )}
         {tab === 'Salary' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Basic Salary (BHD)" required><Input {...register('basic_salary',{valueAsNumber:true})} type="number" step="0.001" min="0" placeholder="0.000" /></FormField>
-            <FormField label="Housing Allowance (BHD)"><Input {...register('housing_allowance',{valueAsNumber:true})} type="number" step="0.001" min="0" placeholder="0.000" /></FormField>
-            <FormField label="Transport Allowance (BHD)"><Input {...register('transport_allowance',{valueAsNumber:true})} type="number" step="0.001" min="0" placeholder="0.000" /></FormField>
-            <FormField label="Food Allowance (BHD)"><Input {...register('food_allowance',{valueAsNumber:true})} type="number" step="0.001" min="0" placeholder="0.000" /></FormField>
-            <FormField label="Other Allowances (BHD)"><Input {...register('other_allowances',{valueAsNumber:true})} type="number" step="0.001" min="0" placeholder="0.000" /></FormField>
-            <div className="sm:col-span-2 p-4 bg-primary-50 rounded-xl border border-primary-100">
-              <p className="text-xs font-semibold text-primary-700 mb-1">Gross Salary Preview</p>
-              <p className="text-xl font-bold text-primary-900">BHD {((+watch('basic_salary')||0)+(+watch('housing_allowance')||0)+(+watch('transport_allowance')||0)+(+watch('food_allowance')||0)+(+watch('other_allowances')||0)).toFixed(3)}</p>
-              <p className="text-xs text-primary-600 mt-1">GOSI (7% basic, Bahraini nationals): BHD {((+watch('basic_salary')||0)*0.07).toFixed(3)}</p>
-            </div>
+            {(() => {
+              const ccy = config.locale.currencyCode;
+              const dec = config.locale.currencyDecimals;
+              const step = (1 / Math.pow(10, dec)).toFixed(dec);
+              const gross = (+watch('basic_salary')||0)+(+watch('housing_allowance')||0)+(+watch('transport_allowance')||0)+(+watch('food_allowance')||0)+(+watch('other_allowances')||0);
+              return (
+                <>
+                  <FormField label={`Basic Salary (${ccy})`} required><Input {...register('basic_salary',{valueAsNumber:true})} type="number" step={step} min="0" placeholder={step.replace(/1$/, '0')} /></FormField>
+                  <FormField label={`Housing Allowance (${ccy})`}><Input {...register('housing_allowance',{valueAsNumber:true})} type="number" step={step} min="0" /></FormField>
+                  <FormField label={`Transport Allowance (${ccy})`}><Input {...register('transport_allowance',{valueAsNumber:true})} type="number" step={step} min="0" /></FormField>
+                  <FormField label={`Food Allowance (${ccy})`}><Input {...register('food_allowance',{valueAsNumber:true})} type="number" step={step} min="0" /></FormField>
+                  <FormField label={`Other Allowances (${ccy})`}><Input {...register('other_allowances',{valueAsNumber:true})} type="number" step={step} min="0" /></FormField>
+                  <div className="sm:col-span-2 p-4 bg-primary-50 rounded-xl border border-primary-100">
+                    <p className="text-xs font-semibold text-primary-700 mb-1">Gross Salary Preview</p>
+                    <p className="text-xl font-bold text-primary-900">{ccy} {gross.toFixed(dec)}</p>
+                    {countryCode === 'BH' && config.flags.socialInsurance && (
+                      <p className="text-xs text-primary-600 mt-1">GOSI (7% basic, Bahraini nationals): {ccy} {((+watch('basic_salary')||0)*0.07).toFixed(dec)}</p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
         {tab === 'Documents' && (
@@ -243,20 +329,25 @@ export default function EmployeeForm({ employee, onClose }) {
                 {countries.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </Select>
             </FormField>
-            <div className="sm:col-span-2 border-b border-secondary-100 pb-2 pt-2">
-              <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider">Visa</p>
-            </div>
-            <FormField label="Visa Number"><Input {...register('visa_number')} /></FormField>
-            <FormField label="Visa Expiry"><Input {...register('visa_expiry')} type="date" /></FormField>
-            <FormField label="Visa Type"><Input {...register('visa_type')} placeholder="Work / Residence" /></FormField>
-            <div className="sm:col-span-2 border-b border-secondary-100 pb-2 pt-2">
-              <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider">Work Permit</p>
-            </div>
-            <FormField label="Work Permit Number"><Input {...register('work_permit_number')} /></FormField>
-            <FormField label="Work Permit Expiry"><Input {...register('work_permit_expiry')} type="date" /></FormField>
+            {showImmigration && (
+              <>
+                <div className="sm:col-span-2 border-b border-secondary-100 pb-2 pt-2">
+                  <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider">Visa</p>
+                </div>
+                <FormField label="Visa Number"><Input {...register('visa_number')} /></FormField>
+                <FormField label="Visa Expiry"><Input {...register('visa_expiry')} type="date" /></FormField>
+                <FormField label="Visa Type"><Input {...register('visa_type')} placeholder="Work / Residence" /></FormField>
+                <div className="sm:col-span-2 border-b border-secondary-100 pb-2 pt-2">
+                  <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider">Work Permit</p>
+                </div>
+                <FormField label="Work Permit Number"><Input {...register('work_permit_number')} /></FormField>
+                <FormField label="Work Permit Expiry"><Input {...register('work_permit_expiry')} type="date" /></FormField>
+              </>
+            )}
             {/* Dynamic custom fields for Documents section */}
             <CustomFieldsSection
               fields={customFieldsBySection['Documents'] || []}
+              allFields={visibleFields}
               values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
               onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
           </div>
@@ -289,19 +380,36 @@ export default function EmployeeForm({ employee, onClose }) {
   );
 }
 
+// Evaluate a field's dependency_condition against current values.
+// Condition: { field: <field_key>, operator: eq|neq|in, value }
+function isDependencySatisfied(field, allFields, values) {
+  const cond = field.dependency_condition;
+  if (!cond?.field) return true;
+  const target = (allFields || []).find(f => f.field_key === cond.field);
+  const current = target ? values[target.id] ?? target.default_value ?? '' : '';
+  switch (cond.operator) {
+    case 'neq': return current !== cond.value;
+    case 'in': return Array.isArray(cond.value) && cond.value.includes(current);
+    case 'eq':
+    default: return current === cond.value;
+  }
+}
+
 // Renders dynamic custom fields for a given section
-function CustomFieldsSection({ fields, values, onChange }) {
+function CustomFieldsSection({ fields, allFields, values, onChange }) {
   if (!fields || fields.length === 0) return null;
   return (
     <>
-      {fields.map(f => (
-        <FormField key={f.id} label={f.field_label} required={f.is_required} hint={f.hint}>
-          <CustomFieldInput
-            field={f}
-            value={values[f.id] || ''}
-            onChange={val => onChange(f.id, val)} />
-        </FormField>
-      ))}
+      {fields
+        .filter(f => isDependencySatisfied(f, allFields ?? fields, values))
+        .map(f => (
+          <FormField key={f.id} label={f.field_label} required={f.is_required} hint={f.hint}>
+            <CustomFieldInput
+              field={f}
+              value={values[f.id] ?? ''}
+              onChange={val => onChange(f.id, val)} />
+          </FormField>
+        ))}
     </>
   );
 }
@@ -350,6 +458,10 @@ function CustomFieldInput({ field, value, onChange }) {
           onChange={e => onChange(e.target.value)}
           placeholder={field.placeholder || ''}
           required={field.is_required}
+          pattern={field.validation_rule?.regex}
+          min={field.validation_rule?.min}
+          max={field.validation_rule?.max}
+          title={field.validation_rule?.regex ? `${field.field_label}: expected format ${field.validation_rule.regex}` : undefined}
           className="input" />
       );
   }

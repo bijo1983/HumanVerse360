@@ -4,6 +4,7 @@ import { useEmployee } from '../../hooks/useEmployees';
 import { useLeaveBalances } from '../../hooks/useLeave';
 import { useDocuments } from '../../hooks/useDocuments';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
 import { StatusBadge, Badge } from '../../components/ui/Badge';
 import { formatDate, formatCurrency, getDaysUntilExpiry, getDocumentStatus } from '../../lib/calculations';
 import { differenceInYears, parseISO } from 'date-fns';
@@ -13,6 +14,7 @@ import EmployeeForm from './EmployeeForm';
 export default function EmployeeDetail() {
   const { id } = useParams();
   const { companyId, showSalary } = useAuth();
+  const { config } = useCountryConfig();
   const [showEdit, setShowEdit] = useState(false);
   const { data: emp, isLoading } = useEmployee(id);
   const { data: balances = [] } = useLeaveBalances(id, new Date().getFullYear(), companyId);
@@ -57,6 +59,7 @@ export default function EmployeeDetail() {
           <div className="space-y-2 text-sm">
             {[
               ['Employee ID', emp.employee_id],
+              [config.identity.nationalIdLabel, emp.cpr_number],
               ['Nationality', emp.nationality],
               ['Gender', emp.gender],
               ['Marital Status', emp.marital_status],
