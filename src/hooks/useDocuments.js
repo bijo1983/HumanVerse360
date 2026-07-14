@@ -37,6 +37,29 @@ export function useExpiringDocuments(days = 90, companyId) {
   });
 }
 
+// Country document requirements (company override > platform template, merged by document_code)
+export function useDocumentRequirements(countryCode, companyId) {
+  return useQuery({
+    queryKey: ['document-requirements', countryCode, companyId],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('country_document_requirements')
+        .select('*')
+        .eq('country_code', countryCode)
+        .eq('is_active', true)
+        .order('display_order');
+      if (error) throw error;
+      const rows = data || [];
+      const merged = new Map();
+      for (const r of rows.filter(r => !r.company_id)) merged.set(r.document_code, r);
+      for (const r of rows.filter(r => r.company_id === companyId)) merged.set(r.document_code, r);
+      return [...merged.values()].sort((a, b) => a.display_order - b.display_order);
+    },
+  });
+}
+
 export function useCreateDocument(companyId) {
   const qc = useQueryClient();
   return useMutation({

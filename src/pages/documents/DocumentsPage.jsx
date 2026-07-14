@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Plus, Edit, Trash2, AlertTriangle, Clock, ShieldAlert, CheckCircle } from 'lucide-react';
-import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, useExpiringDocuments } from '../../hooks/useDocuments';
+import { useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument, useExpiringDocuments, useDocumentRequirements } from '../../hooks/useDocuments';
 import { useEmployees } from '../../hooks/useEmployees';
+import { useCustomFields, useEmployeeCustomValues } from '../../hooks/useCustomFields';
 import { useAuth } from '../../contexts/AuthContext';
 import { Table } from '../../components/ui/Table';
 import { StatusBadge, Badge } from '../../components/ui/Badge';
@@ -13,7 +14,8 @@ import { useForm } from 'react-hook-form';
 const DOC_TYPES = ['Passport', 'Visa', 'National ID', 'Work Permit', 'Driving License', 'Health Card', 'Educational Certificate', 'Professional License', 'Other'];
 
 export default function DocumentsPage() {
-  const { companyId } = useAuth();
+  const { companyId, company } = useAuth();
+  const countryCode = company?.country_code || 'BH';
   const [tab, setTab] = useState('alerts');
   const [showForm, setShowForm] = useState(false);
   const [editingDoc, setEditingDoc] = useState(null);
@@ -120,7 +122,7 @@ export default function DocumentsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-secondary-200">
-        {[['alerts', 'Expiry Alerts'], ['all', 'All Documents']].map(([key, label]) => (
+        {[['alerts', 'Expiry Alerts'], ['all', 'All Documents'], ['checklist', 'Compliance Checklist']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === key ? 'border-primary-600 text-primary-600' : 'border-transparent text-secondary-500 hover:text-secondary-700'}`}>
             {label}
@@ -159,8 +161,13 @@ export default function DocumentsPage() {
         </>
       )}
 
+      {tab === 'checklist' && (
+        <ChecklistTab companyId={companyId} countryCode={countryCode} allDocs={allDocs}
+          onAddDocument={() => { setEditingDoc(null); setShowForm(true); }} />
+      )}
+
       {showForm && (
-        <DocumentForm doc={editingDoc} onClose={() => { setShowForm(false); setEditingDoc(null); }} />
+        <DocumentForm doc={editingDoc} countryCode={countryCode} onClose={() => { setShowForm(false); setEditingDoc(null); }} />
       )}
 
       <ConfirmModal
@@ -175,17 +182,116 @@ export default function DocumentsPage() {
   );
 }
 
-function DocumentForm({ doc, onClose }) {
+// Per-employee document compliance checklist driven by country requirements
+function ChecklistTab({ companyId, countryCode, allDocs, onAddDocument }) {
+  const [employeeId, setEmployeeId] = useState('');
+  const { data: employees = [] } = useEmployees({ status: 'Active' }, companyId);
+  const { data: requirements = [] } = useDocumentRequirements(countryCode, companyId);
+  const { data: fieldDefs = [] } = useCustomFields('employees', companyId, countryCode);
+  const { data: fieldValues = {} } = useEmployeeCustomValues(employeeId || null);
+
+  // Resolve custom field values by field_key for applicability conditions
+  const valueByKey = {};
+  for (const f of fieldDefs) {
+    const v = fieldValues[f.id] ?? f.default_value;
+    if (v !== undefined && v !== null) valueByKey[f.field_key] = v;
+  }
+
+  function isApplicable(req) {
+    const cond = req.applicable_when;
+    if (!cond?.field) return true;
+    const current = valueByKey[cond.field];
+    if (current === undefined) return true; // unknown — show rather than hide
+    if (cond.operator === 'neq') return current !== cond.value;
+    if (cond.operator === 'in') return Array.isArray(cond.value) && cond.value.includes(current);
+    return current === cond.value;
+  }
+
+  const empDocs = allDocs.filter(d => d.employee_id === employeeId);
+  const rows = requirements.filter(isApplicable).map(req => {
+    const match = empDocs.find(d => d.requirement_id === req.id || d.document_type === req.document_name);
+    let status = 'missing';
+    if (match) {
+      status = req.has_expiry && match.expiry_date
+        ? getDocumentStatus(match.expiry_date) // valid | alert | warning | critical | expired
+        : 'on-file';
+    }
+    return { req, match, status };
+  });
+
+  const missingMandatory = rows.filter(r => r.status === 'missing' && r.req.is_mandatory).length;
+
+  const statusBadge = (status, expiry) => {
+    if (status === 'missing') return <Badge variant="error">Missing</Badge>;
+    if (status === 'on-file' || status === 'valid') return <Badge variant="success">On file</Badge>;
+    if (status === 'expired') return <Badge variant="error">Expired</Badge>;
+    const days = getDaysUntilExpiry(expiry);
+    return <Badge variant="warning">{`Expires in ${days}d`}</Badge>;
+  };
+
+  return (
+    <div className="card">
+      <div className="p-4 border-b border-secondary-100 flex flex-wrap items-center gap-3">
+        <Select value={employeeId} onChange={e => setEmployeeId(e.target.value)} className="w-72">
+          <option value="">Select employee...</option>
+          {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_id})</option>)}
+        </Select>
+        {employeeId && (
+          <p className="text-sm text-secondary-500">
+            {missingMandatory === 0
+              ? 'All mandatory documents are on file.'
+              : `${missingMandatory} mandatory document${missingMandatory > 1 ? 's' : ''} missing.`}
+          </p>
+        )}
+        <button onClick={onAddDocument} className="btn-secondary ml-auto"><Plus className="w-4 h-4" /> Add Document</button>
+      </div>
+      {!employeeId ? (
+        <p className="p-6 text-sm text-secondary-400 text-center">Select an employee to view their country document checklist.</p>
+      ) : (
+        <Table
+          columns={[
+            { header: 'Document', key: 'req', render: r => (
+              <div>
+                <p className="text-sm font-medium text-secondary-800">
+                  {r.document_name}
+                  {r.is_mandatory && <span className="text-error-500 ml-1">*</span>}
+                </p>
+                {r.hint && <p className="text-xs text-secondary-400">{r.hint}</p>}
+              </div>
+            ) },
+            { header: 'Number', key: 'match', render: m => m?.document_number || '–' },
+            { header: 'Expiry', key: 'match', render: (m, row) => row.req.has_expiry ? formatDate(m?.expiry_date) : '–' },
+            { header: 'Status', key: 'status', render: (s, row) => statusBadge(s, row.match?.expiry_date) },
+          ]}
+          data={rows}
+          emptyMessage="No document requirements configured for this country."
+        />
+      )}
+    </div>
+  );
+}
+
+function DocumentForm({ doc, countryCode, onClose }) {
   const { companyId } = useAuth();
   const { data: employees = [] } = useEmployees({ status: 'Active' }, companyId);
+  const { data: requirements = [] } = useDocumentRequirements(countryCode, companyId);
   const createDoc = useCreateDocument(companyId);
   const updateDoc = useUpdateDocument();
   const { register, handleSubmit } = useForm({ defaultValues: doc || {} });
 
+  // Country requirement names first, then the generic types
+  const typeOptions = [
+    ...requirements.map(r => r.document_name),
+    ...DOC_TYPES.filter(t => !requirements.some(r => r.document_name === t)),
+  ];
+
   async function onSubmit(data) {
     try {
-      if (doc) await updateDoc.mutateAsync({ id: doc.id, ...data });
-      else await createDoc.mutateAsync(data);
+      // Link the upload to the matching country requirement when the type matches
+      const req = requirements.find(r => r.document_name === data.document_type);
+      const payload = { ...data, requirement_id: req?.id ?? doc?.requirement_id ?? null };
+      if (doc) await updateDoc.mutateAsync({ id: doc.id, ...payload });
+      else await createDoc.mutateAsync(payload);
       onClose();
     } catch (e) { alert(e.message); }
   }
@@ -212,7 +318,7 @@ function DocumentForm({ doc, onClose }) {
         <FormField label="Document Type" required>
           <Select {...register('document_type', { required: true })}>
             <option value="">Select type...</option>
-            {DOC_TYPES.map(t => <option key={t}>{t}</option>)}
+            {typeOptions.map(t => <option key={t}>{t}</option>)}
           </Select>
         </FormField>
         <FormField label="Document Number">
