@@ -13,15 +13,10 @@ import LookupSettings from './LookupSettings';
 import EmployeeNumbering from './EmployeeNumbering';
 import UserManagement from './UserManagement';
 import ImageUploadCrop from '../../components/ui/ImageUploadCrop';
+import { useCountries } from '../../hooks/useCountryConfig';
 
-const GCC_COUNTRIES = [
-  { code: 'BH', name: 'Bahrain' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'QA', name: 'Qatar' },
-  { code: 'KW', name: 'Kuwait' },
-  { code: 'OM', name: 'Oman' },
-];
+// Country list comes from the countries table via useCountries()
+// (falls back to a static list if the fetch fails).
 
 const TABS = [
   { key: 'company', label: 'Company Profile' },
@@ -67,6 +62,7 @@ export default function GeneralSettings() {
 
 function CompanyProfileTab({ companyId }) {
   const qc = useQueryClient();
+  const { countries } = useCountries();
   const { data: company, isLoading } = useQuery({
     queryKey: ['company-profile', companyId],
     queryFn: async () => {
@@ -85,7 +81,7 @@ function CompanyProfileTab({ companyId }) {
 
   const save = useMutation({
     mutationFn: async (data) => {
-      const countryObj = GCC_COUNTRIES.find(c => c.code === data.country_code);
+      const countryObj = countries.find(c => c.code === data.country_code);
       const payload = { ...data, logo_url: effectiveLogo || data.logo_url || null };
       if (countryObj) payload.country = countryObj.name;
       const { error } = await supabase.from('companies').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', companyId);
@@ -138,7 +134,7 @@ function CompanyProfileTab({ companyId }) {
           <FormField label="Country">
             <Select {...register('country_code')} onChange={e => { setValue('country_code', e.target.value, { shouldDirty: true }); }}>
               <option value="">Select country...</option>
-              {GCC_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
             </Select>
           </FormField>
           <FormField label="Industry">

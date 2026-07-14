@@ -122,14 +122,29 @@ export function evaluateFormula(formula, variables) {
   }
 }
 
-export function formatCurrency(amount, currency = 'BHD') {
+// Legacy signature kept for existing call sites (defaults preserve the
+// original Bahrain behavior). New code should pass a locale config from
+// useCountryConfig(): formatCurrency(amount, cfg.locale)
+export function formatCurrency(amount, currencyOrLocale = 'BHD') {
   if (amount == null || isNaN(amount)) return '–';
-  return new Intl.NumberFormat('en-BH', { style: 'currency', currency, minimumFractionDigits: 3 }).format(amount);
+  const locale =
+    typeof currencyOrLocale === 'string'
+      ? { currencyCode: currencyOrLocale, currencyDecimals: currencyOrLocale === 'BHD' ? 3 : 2, numberLocale: 'en-BH' }
+      : currencyOrLocale;
+  return new Intl.NumberFormat(locale.numberLocale || 'en', {
+    style: 'currency',
+    currency: locale.currencyCode || 'BHD',
+    minimumFractionDigits: locale.currencyDecimals ?? 2,
+    maximumFractionDigits: locale.currencyDecimals ?? 2,
+  }).format(amount);
 }
 
-export function formatDate(date) {
+export function formatDate(date, localeCfg) {
   if (!date) return '–';
   const d = typeof date === 'string' ? parseISO(date) : date;
+  if (localeCfg?.dateFormat === 'MM/DD/YYYY') {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(d);
+  }
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 }
 

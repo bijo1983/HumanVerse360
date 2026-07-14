@@ -259,6 +259,91 @@ export function useDeletePayrollRun(companyId) {
   });
 }
 
+// Country-scoped payroll components (company override wins over platform template by code)
+export function usePayrollComponents(countryCode, companyId) {
+  return useQuery({
+    queryKey: ['payroll-components', countryCode, companyId],
+    enabled: !!countryCode,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('payroll_components')
+        .select('*')
+        .or(`country_code.eq.${countryCode},country_code.is.null`)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`)
+        .order('calculation_order');
+      if (error) throw error;
+      const rows = data || [];
+      const merged = new Map();
+      for (const r of rows.filter(r => !r.company_id)) merged.set(r.component_code, r);
+      for (const r of rows.filter(r => r.company_id === companyId)) merged.set(r.component_code, r);
+      return [...merged.values()]
+        .filter(r => r.is_active)
+        .sort((a, b) => a.calculation_order - b.calculation_order);
+    },
+  });
+}
+
+// Create/update a company-level component override (or custom component)
+export function useSaveCompanyComponent(companyId, countryCode) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, isTemplateOverride, ...fields }) => {
+      if (id && !isTemplateOverride) {
+        const { error } = await supabase.from('payroll_components').update(fields).eq('id', id).eq('company_id', companyId);
+        if (error) throw error;
+      } else {
+        // Overriding a platform template creates a company row with the same code
+        const { error } = await supabase.from('payroll_components').insert({
+          ...fields,
+          company_id: companyId,
+          country_code: countryCode,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-components'] }),
+  });
+}
+
+// Payroll structures + per-employee component assignments
+export function usePayrollStructures(companyId) {
+  return useQuery({
+    queryKey: ['payroll-structures', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payroll_structures')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useEmployeeAssignments(employeeId) {
+  return useQuery({
+    queryKey: ['employee-assignments', employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('employee_payroll_assignments')
+        .select('*, payroll_components(component_code, component_name, component_type, calculation_type)')
+        .eq('employee_id', employeeId)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
 export function useSalaryComponents(companyId) {
   return useQuery({
     queryKey: ['salary-components', companyId ?? null],
