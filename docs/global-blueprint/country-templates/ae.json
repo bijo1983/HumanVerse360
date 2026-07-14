@@ -1,0 +1,132 @@
+{
+  "$schema": "hv360-country-template-v1",
+  "country": {
+    "code": "AE", "name": "United Arab Emirates", "currency_code": "AED", "currency_decimals": 2,
+    "date_format": "DD/MM/YYYY", "number_locale": "en", "timezone": "Asia/Dubai",
+    "payroll_frequency": "monthly", "weekend_days": [6, 7],
+    "default_working_days": 26, "daily_hours": 8
+  },
+  "flags": { "income_tax": false, "social_insurance": true, "eosb": false, "gratuity": true, "wps": true },
+  "identity": {
+    "national_id_label": "Emirates ID",
+    "national_id_validation": { "regex": "^784-?\\d{4}-?\\d{7}-?\\d$" },
+    "tax_id_label": null
+  },
+  "employeeFields": [
+    { "field_key": "national_id", "field_label": "Emirates ID", "field_label_i18n": { "ar": "الهوية الإماراتية" },
+      "field_type": "text", "section_name": "Personal", "is_required": true, "is_identity_field": true,
+      "is_sensitive": true, "validation_rule": { "regex": "^784-?\\d{4}-?\\d{7}-?\\d$" }, "display_order": 1,
+      "placeholder": "784-YYYY-NNNNNNN-C" },
+    { "field_key": "eid_expiry", "field_label": "Emirates ID Expiry", "field_type": "date", "section_name": "Documents", "display_order": 2 },
+    { "field_key": "nationality_class", "field_label": "Nationality Class", "field_type": "select",
+      "options": [ { "value": "citizen", "label": "UAE National" }, { "value": "gcc_national", "label": "GCC National" }, { "value": "expat", "label": "Expatriate" } ],
+      "is_required": true, "section_name": "Personal", "display_order": 3, "maps_to_variable": "NATIONALITY_CLASS" },
+    { "field_key": "labour_card_number", "field_label": "Labour Card Number", "field_type": "text", "section_name": "Statutory", "display_order": 10 },
+    { "field_key": "mohre_number", "field_label": "MOHRE Number", "field_type": "text", "section_name": "Statutory", "display_order": 11 },
+    { "field_key": "wps_person_id", "field_label": "WPS Person ID", "field_type": "text", "section_name": "Statutory", "display_order": 12, "help_text": "14-digit MOHRE person ID used in SIF file" },
+    { "field_key": "uid_number", "field_label": "UID Number", "field_type": "text", "section_name": "Immigration", "display_order": 20 },
+    { "field_key": "visa_number", "field_label": "Residence Visa Number", "field_type": "text", "section_name": "Immigration", "display_order": 21,
+      "dependency_condition": { "field": "nationality_class", "operator": "eq", "value": "expat" } },
+    { "field_key": "visa_expiry", "field_label": "Visa Expiry", "field_type": "date", "section_name": "Immigration", "display_order": 22 },
+    { "field_key": "contract_type", "field_label": "Contract Type", "field_type": "select",
+      "options": [ { "value": "limited", "label": "Limited" }, { "value": "unlimited", "label": "Unlimited" } ],
+      "section_name": "Employment", "display_order": 30, "maps_to_variable": "CONTRACT_TYPE" }
+  ],
+  "addressFormat": {
+    "fields": [
+      { "key": "emirate", "label": "Emirate", "type": "select", "required": true,
+        "options": ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"], "display_order": 1 },
+      { "key": "area", "label": "Area", "display_order": 2 },
+      { "key": "street", "label": "Street", "display_order": 3 },
+      { "key": "building", "label": "Building", "display_order": 4 },
+      { "key": "po_box", "label": "PO Box", "display_order": 5 }
+    ]
+  },
+  "documents": [
+    { "document_code": "emirates_id", "document_name": "Emirates ID", "is_mandatory": true, "has_expiry": true, "expiry_notify_days": [90, 60, 30] },
+    { "document_code": "passport_copy", "document_name": "Passport Copy", "is_mandatory": true, "has_expiry": true },
+    { "document_code": "residence_visa", "document_name": "Residence Visa", "is_mandatory": true, "has_expiry": true, "applicable_when": { "nationality_class": "expat" } },
+    { "document_code": "labour_card", "document_name": "Labour Card", "is_mandatory": true, "has_expiry": true, "applicable_when": { "nationality_class": "expat" } },
+    { "document_code": "medical_insurance", "document_name": "Medical Insurance Card", "is_mandatory": true, "has_expiry": true }
+  ],
+  "payrollComponents": [
+    { "component_code": "BASIC", "component_name": "Basic Salary", "component_type": "earning", "calculation_type": "fixed",
+      "include_in_eosb_base": true, "include_in_social_base": true, "calculation_order": 10 },
+    { "component_code": "HOUSING", "component_name": "Housing Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 20 },
+    { "component_code": "TRANSPORT", "component_name": "Transport Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 30 },
+    { "component_code": "OTHER_ALW", "component_name": "Other Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 40 },
+    { "component_code": "OT", "component_name": "Overtime", "component_type": "earning", "calculation_type": "formula",
+      "formula": "BASIC / WORKING_DAYS / DAILY_HOURS * OT_HOURS * OT_MULTIPLIER", "calculation_order": 50 },
+    { "component_code": "GPSSA_EE", "component_name": "GPSSA Pension (Employee)", "component_type": "deduction",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_GPSSA", "is_statutory": true,
+      "applicable_nationality": "citizen", "statutory_module_code": "GPSSA", "calculation_order": 100 },
+    { "component_code": "LOAN", "component_name": "Loan Deduction", "component_type": "deduction", "calculation_type": "fixed", "calculation_order": 110 },
+    { "component_code": "ADV", "component_name": "Salary Advance", "component_type": "deduction", "calculation_type": "fixed", "calculation_order": 120 },
+    { "component_code": "ABSENCE", "component_name": "Absence Deduction", "component_type": "deduction", "calculation_type": "formula",
+      "formula": "ROUND(GROSS / CALENDAR_DAYS * ABSENT_DAYS, 2)", "calculation_order": 130 },
+    { "component_code": "GPSSA_ER", "component_name": "GPSSA Pension (Employer)", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_GPSSA", "applicable_nationality": "citizen", "calculation_order": 200 },
+    { "component_code": "MED_INS", "component_name": "Medical Insurance", "component_type": "employer_contribution", "calculation_type": "fixed", "calculation_order": 210 },
+    { "component_code": "VISA_COST", "component_name": "Visa Cost Amortization", "component_type": "employer_contribution",
+      "calculation_type": "fixed", "applicable_nationality": "expat", "calculation_order": 220 },
+    { "component_code": "GRATUITY_PROV", "component_name": "End of Service Provision", "component_type": "provision",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_GRATUITY", "applicable_nationality": "expat", "calculation_order": 230 }
+  ],
+  "statutoryModules": [
+    { "module_code": "WPS", "module_name": "Wage Protection System (SIF)", "category": "wage_protection",
+      "settings_schema": { "employer_wps_id": "text", "bank_routing_code": "text" } },
+    { "module_code": "MOHRE", "module_name": "Ministry of Human Resources & Emiratisation", "category": "labour" },
+    { "module_code": "GPSSA", "module_name": "General Pension & Social Security Authority", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "gpssa_employee_pct", "rule_value": 0.05, "applicable_to": "citizen", "effective_from": "2024-01-01" },
+        { "rule_key": "gpssa_employer_pct", "rule_value": 0.125, "applicable_to": "citizen", "effective_from": "2024-01-01" },
+        { "rule_key": "gpssa_wage_ceiling", "rule_value": 50000, "effective_from": "2024-01-01" }
+      ] },
+    { "module_code": "MED_INS_MANDATE", "module_name": "Medical Insurance Mandate", "category": "benefits" }
+  ],
+  "taxRules": [],
+  "eosbRules": [
+    { "rule_code": "AE_GRATUITY", "rule_name": "End of Service Gratuity (UAE Labour Law)",
+      "eligibility_months": 12, "calculation_base": "basic", "day_divisor": 30,
+      "accrual_method": "monthly_provision", "nationality_dependency": "expat_only",
+      "max_years_cap": 2,
+      "tier_bands": [
+        { "fromYears": 0, "toYears": 5, "daysPerYear": 21 },
+        { "fromYears": 5, "toYears": null, "daysPerYear": 30 }
+      ],
+      "termination_factors": [ { "reason": "Termination", "factor": 1 }, { "reason": "Resignation", "factor": 1 } ],
+      "notes": "Post-2022 decree: full gratuity on resignation; keep legacy factors as archived version for older periods" }
+  ],
+  "leavePolicies": [
+    { "leave_code": "ANNUAL", "leave_name": "Annual Leave", "days_per_year": 30, "accrual_method": "monthly_accrual", "is_statutory": true },
+    { "leave_code": "SICK", "leave_name": "Sick Leave", "days_per_year": 90,
+      "paid_tiers": [ { "days": 15, "payPct": 100 }, { "days": 30, "payPct": 50 }, { "days": 45, "payPct": 0 } ], "is_statutory": true },
+    { "leave_code": "MATERNITY", "leave_name": "Maternity Leave", "days_per_year": 60, "gender_specific": "Female",
+      "paid_tiers": [ { "days": 45, "payPct": 100 }, { "days": 15, "payPct": 50 } ], "is_statutory": true },
+    { "leave_code": "PATERNITY", "leave_name": "Parental Leave", "days_per_year": 5, "is_statutory": true }
+  ],
+  "overtimeRules": [
+    { "rule_code": "NORMAL_OT", "multiplier": 1.25, "basis": "hourly_from_monthly" },
+    { "rule_code": "NIGHT_OT", "multiplier": 1.5, "basis": "hourly_from_monthly" },
+    { "rule_code": "HOLIDAY_OT", "multiplier": 1.5, "basis": "hourly_from_monthly" }
+  ],
+  "holidays": [
+    { "name": "New Year's Day", "holiday_type": "public", "start_date": "2026-01-01", "end_date": "2026-01-01" },
+    { "name": "Eid Al Fitr", "holiday_type": "religious", "start_date": "2026-03-20", "end_date": "2026-03-23", "is_tentative": true },
+    { "name": "Eid Al Adha", "holiday_type": "religious", "start_date": "2026-05-26", "end_date": "2026-05-29", "is_tentative": true },
+    { "name": "UAE National Day", "holiday_type": "national", "start_date": "2026-12-02", "end_date": "2026-12-03" }
+  ],
+  "payslipTemplate": {
+    "identity": [ { "fieldKey": "national_id", "label": "Emirates ID", "mask": "last4" }, { "fieldKey": "wps_person_id", "label": "WPS ID" } ],
+    "earnings": { "componentTypes": ["earning"] },
+    "deductions": { "componentTypes": ["deduction"] },
+    "employerBlock": { "visible": false },
+    "ytdBlock": { "visible": false },
+    "footer": { "labels": { "net": "Net Pay (AED)" } }
+  },
+  "reportMappings": [
+    { "report_code": "employee_master", "field_key": "national_id", "column_label": "Emirates ID", "source": "dynamic:national_id", "format": "masked" },
+    { "report_code": "wps_sif", "field_key": "wps_person_id", "column_label": "Person ID", "source": "dynamic:wps_person_id" }
+  ],
+  "dataRetention": { "payroll_years": 10, "employee_after_exit_years": 2 }
+}

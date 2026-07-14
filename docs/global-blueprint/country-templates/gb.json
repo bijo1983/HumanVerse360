@@ -1,0 +1,163 @@
+{
+  "$schema": "hv360-country-template-v1",
+  "country": {
+    "code": "GB", "name": "United Kingdom", "currency_code": "GBP", "currency_decimals": 2,
+    "date_format": "DD/MM/YYYY", "number_locale": "en-GB", "timezone": "Europe/London",
+    "payroll_frequency": "monthly", "weekend_days": [6, 7],
+    "default_working_days": 21.67, "daily_hours": 7.5
+  },
+  "flags": { "income_tax": true, "social_insurance": true, "eosb": false, "gratuity": false, "wps": false },
+  "identity": {
+    "national_id_label": "National Insurance Number",
+    "national_id_validation": { "regex": "^[A-CEGHJ-PR-TW-Z]{2}\\d{6}[A-D]$" },
+    "tax_id_label": "Tax Code"
+  },
+  "taxYear": { "label_format": "{YYYY}/{YY+1}", "start_month": 4, "start_day": 6 },
+  "employeeFields": [
+    { "field_key": "national_id", "field_label": "National Insurance Number", "field_type": "text",
+      "section_name": "Personal", "is_required": true, "is_identity_field": true, "is_sensitive": true,
+      "validation_rule": { "regex": "^[A-CEGHJ-PR-TW-Z]{2}\\d{6}[A-D]$" }, "display_order": 1, "placeholder": "QQ123456C" },
+    { "field_key": "tax_code", "field_label": "Tax Code", "field_type": "text", "section_name": "Statutory",
+      "is_required": true, "default_value": "1257L", "display_order": 10, "maps_to_variable": "TAX_CODE",
+      "validation_rule": { "regex": "^([1-9]\\d{0,3}[LMNPTY]|BR|D0|D1|NT|0T|K\\d{1,4})(W1|M1|X)?$" } },
+    { "field_key": "ni_category", "field_label": "NI Category Letter", "field_type": "select",
+      "options": [ { "value": "A", "label": "A — Standard" }, { "value": "B", "label": "B — Married women (reduced)" },
+                   { "value": "C", "label": "C — Over state pension age" }, { "value": "H", "label": "H — Apprentice under 25" } ],
+      "default_value": "A", "section_name": "Statutory", "display_order": 11, "maps_to_variable": "NI_CATEGORY" },
+    { "field_key": "paye_reference", "field_label": "PAYE Reference", "field_type": "text", "section_name": "Statutory", "display_order": 12 },
+    { "field_key": "pension_scheme_number", "field_label": "Pension Scheme Number", "field_type": "text", "section_name": "Statutory", "display_order": 13 },
+    { "field_key": "pension_pct", "field_label": "Pension Contribution %", "field_type": "number",
+      "default_value": "5", "section_name": "Statutory", "display_order": 14, "maps_to_variable": "PENSION_PCT" },
+    { "field_key": "student_loan_plan", "field_label": "Student Loan Plan", "field_type": "select",
+      "options": [ { "value": "none", "label": "None" }, { "value": "plan1", "label": "Plan 1" },
+                   { "value": "plan2", "label": "Plan 2" }, { "value": "plan4", "label": "Plan 4" }, { "value": "pgl", "label": "Postgraduate" } ],
+      "default_value": "none", "section_name": "Statutory", "display_order": 15, "maps_to_variable": "STUDENT_LOAN_PLAN" },
+    { "field_key": "right_to_work_status", "field_label": "Right to Work Status", "field_type": "select",
+      "options": [ { "value": "citizen", "label": "British/Irish Citizen" }, { "value": "settled", "label": "Settled Status" },
+                   { "value": "pre_settled", "label": "Pre-Settled Status" }, { "value": "visa", "label": "Work Visa" } ],
+      "is_required": true, "section_name": "Compliance", "display_order": 20 },
+    { "field_key": "rtw_expiry", "field_label": "Right to Work Expiry", "field_type": "date", "section_name": "Compliance",
+      "display_order": 21, "dependency_condition": { "field": "right_to_work_status", "operator": "in", "value": ["pre_settled", "visa"] } }
+  ],
+  "addressFormat": {
+    "fields": [
+      { "key": "address_line1", "label": "Address Line 1", "required": true, "display_order": 1 },
+      { "key": "address_line2", "label": "Address Line 2", "display_order": 2 },
+      { "key": "town_city", "label": "Town / City", "required": true, "display_order": 3 },
+      { "key": "county", "label": "County", "display_order": 4 },
+      { "key": "post_code", "label": "Post Code", "required": true,
+        "validation": { "regex": "^[A-Z]{1,2}\\d[A-Z\\d]? ?\\d[A-Z]{2}$" }, "display_order": 5 }
+    ]
+  },
+  "documents": [
+    { "document_code": "ni_proof", "document_name": "National Insurance Proof", "is_mandatory": true },
+    { "document_code": "right_to_work", "document_name": "Right to Work Document", "is_mandatory": true, "has_expiry": true, "expiry_notify_days": [90, 30] },
+    { "document_code": "p45", "document_name": "P45 (or Starter Checklist)", "is_mandatory": true },
+    { "document_code": "pension_enrollment", "document_name": "Pension Enrolment Form", "is_mandatory": false }
+  ],
+  "payrollComponents": [
+    { "component_code": "BASIC", "component_name": "Basic Pay", "component_type": "earning", "calculation_type": "fixed",
+      "is_taxable": true, "include_in_social_base": true, "calculation_order": 10 },
+    { "component_code": "OT", "component_name": "Overtime", "component_type": "earning", "calculation_type": "formula",
+      "formula": "BASIC / WORKING_DAYS / DAILY_HOURS * OT_HOURS * OT_MULTIPLIER", "is_taxable": true, "calculation_order": 20 },
+    { "component_code": "BONUS", "component_name": "Bonus", "component_type": "earning", "calculation_type": "fixed", "is_recurring": false, "is_taxable": true, "calculation_order": 30 },
+    { "component_code": "ALLOWANCE", "component_name": "Allowance", "component_type": "earning", "calculation_type": "fixed", "is_taxable": true, "calculation_order": 40 },
+    { "component_code": "PAYE", "component_name": "PAYE Income Tax", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_PAYE", "is_statutory": true, "statutory_module_code": "PAYE", "calculation_order": 100 },
+    { "component_code": "NI_EE", "component_name": "National Insurance", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_NI", "is_statutory": true, "statutory_module_code": "NI", "calculation_order": 110 },
+    { "component_code": "PENSION_EE", "component_name": "Pension (Employee)", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_PENSION_AE", "is_statutory": true, "statutory_module_code": "PENSION", "calculation_order": 120 },
+    { "component_code": "STUDENT_LOAN", "component_name": "Student Loan", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_STUDENT_LOAN", "is_statutory": true, "calculation_order": 130 },
+    { "component_code": "NI_ER", "component_name": "Employer NI", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_NI", "calculation_order": 200 },
+    { "component_code": "PENSION_ER", "component_name": "Employer Pension", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_PENSION_AE", "calculation_order": 210 },
+    { "component_code": "APPRENTICE_LEVY", "component_name": "Apprenticeship Levy", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_APPRENTICE_LEVY", "calculation_order": 220 }
+  ],
+  "statutoryModules": [
+    { "module_code": "PAYE", "module_name": "PAYE (HMRC)", "category": "tax",
+      "settings_schema": { "employer_paye_reference": "text", "accounts_office_reference": "text" } },
+    { "module_code": "NI", "module_name": "National Insurance", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "ni_primary_threshold_monthly", "rule_value": 1048, "effective_from": "2026-04-06" },
+        { "rule_key": "ni_upper_earnings_limit_monthly", "rule_value": 4189, "effective_from": "2026-04-06" },
+        { "rule_key": "ni_employee_main_pct", "rule_value": 0.08, "effective_from": "2026-04-06" },
+        { "rule_key": "ni_employee_upper_pct", "rule_value": 0.02, "effective_from": "2026-04-06" },
+        { "rule_key": "ni_secondary_threshold_monthly", "rule_value": 417, "effective_from": "2026-04-06" },
+        { "rule_key": "ni_employer_pct", "rule_value": 0.15, "effective_from": "2026-04-06" }
+      ],
+      "note": "Illustrative — refresh from HMRC rates via annual legislation pack" },
+    { "module_code": "PENSION", "module_name": "Pension Auto-Enrolment", "category": "pension",
+      "rules": [
+        { "rule_key": "qualifying_earnings_lower_annual", "rule_value": 6240, "effective_from": "2026-04-06" },
+        { "rule_key": "qualifying_earnings_upper_annual", "rule_value": 50270, "effective_from": "2026-04-06" },
+        { "rule_key": "min_employee_pct", "rule_value": 0.05, "effective_from": "2026-04-06" },
+        { "rule_key": "min_employer_pct", "rule_value": 0.03, "effective_from": "2026-04-06" }
+      ] },
+    { "module_code": "RTI", "module_name": "Real Time Information (FPS/EPS data)", "category": "tax" },
+    { "module_code": "STUDENT_LOAN", "module_name": "Student Loan Deductions", "category": "tax",
+      "rules": [
+        { "rule_key": "plan1_threshold_annual", "rule_value": 26065, "effective_from": "2026-04-06" },
+        { "rule_key": "plan2_threshold_annual", "rule_value": 28470, "effective_from": "2026-04-06" },
+        { "rule_key": "plan_rate_pct", "rule_value": 0.09, "effective_from": "2026-04-06" },
+        { "rule_key": "pgl_rate_pct", "rule_value": 0.06, "effective_from": "2026-04-06" }
+      ] }
+  ],
+  "taxRules": [
+    { "tax_code": "GB_PAYE", "tax_name": "PAYE Income Tax", "tax_year": "2026/27",
+      "calculation_method": "slab", "annualization": "cumulative",
+      "slabs": [
+        { "income_from": 0, "income_to": 37700, "rate_pct": 20 },
+        { "income_from": 37700, "income_to": 125140, "rate_pct": 40 },
+        { "income_from": 125140, "income_to": null, "rate_pct": 45 }
+      ],
+      "extras": { "personal_allowance": 12570, "allowance_taper_from": 100000, "scottish_variant": "separate_rule_rows" },
+      "note": "Slabs applied to income above tax-code allowance; cumulative basis per HMRC" }
+  ],
+  "eosbRules": [
+    { "rule_code": "GB_FINAL_PAY", "rule_name": "Final Pay Settlement", "eligibility_months": 0,
+      "calculation_base": "custom_formula",
+      "base_formula": "PRORATE(BASIC, PAID_DAYS, WORKING_DAYS) + ACCRUED_HOLIDAY_DAYS * (BASIC / WORKING_DAYS)",
+      "day_divisor": 1, "accrual_method": "on_settlement_only", "tier_bands": [], "termination_factors": [],
+      "notes": "No statutory gratuity; optional statutory redundancy table configurable separately" }
+  ],
+  "leavePolicies": [
+    { "leave_code": "ANNUAL", "leave_name": "Annual Leave", "days_per_year": 28, "accrual_method": "monthly_accrual",
+      "is_statutory": true, "statutory_ref": "5.6 weeks incl. bank holidays (Working Time Regulations)" },
+    { "leave_code": "SICK_SSP", "leave_name": "Sick Leave (SSP-linked)", "days_per_year": 0,
+      "is_statutory": true, "notes": "SSP weekly rate from statutory rules; company sick pay configurable" },
+    { "leave_code": "MATERNITY", "leave_name": "Maternity Leave", "days_per_year": 365, "gender_specific": "Female",
+      "is_statutory": true, "notes": "52 weeks; SMP 90% for 6 weeks then statutory rate 33 weeks" },
+    { "leave_code": "PATERNITY", "leave_name": "Paternity Leave", "days_per_year": 14, "is_statutory": true }
+  ],
+  "overtimeRules": [ { "rule_code": "NORMAL_OT", "multiplier": 1.0, "basis": "hourly_rate", "notes": "No statutory OT premium; company-configurable" } ],
+  "holidays": [
+    { "name": "New Year's Day", "holiday_type": "bank", "start_date": "2026-01-01", "end_date": "2026-01-01" },
+    { "name": "Good Friday", "holiday_type": "bank", "start_date": "2026-04-03", "end_date": "2026-04-03" },
+    { "name": "Easter Monday", "holiday_type": "bank", "start_date": "2026-04-06", "end_date": "2026-04-06" },
+    { "name": "Early May Bank Holiday", "holiday_type": "bank", "start_date": "2026-05-04", "end_date": "2026-05-04" },
+    { "name": "Spring Bank Holiday", "holiday_type": "bank", "start_date": "2026-05-25", "end_date": "2026-05-25" },
+    { "name": "Summer Bank Holiday", "holiday_type": "bank", "start_date": "2026-08-31", "end_date": "2026-08-31" },
+    { "name": "Christmas Day", "holiday_type": "bank", "start_date": "2026-12-25", "end_date": "2026-12-25" },
+    { "name": "Boxing Day", "holiday_type": "bank", "start_date": "2026-12-28", "end_date": "2026-12-28" }
+  ],
+  "payslipTemplate": {
+    "identity": [
+      { "fieldKey": "national_id", "label": "NI Number", "mask": "last4" },
+      { "fieldKey": "tax_code", "label": "Tax Code" }, { "fieldKey": "ni_category", "label": "NI Letter" }
+    ],
+    "earnings": { "componentTypes": ["earning"] },
+    "deductions": { "componentTypes": ["deduction"] },
+    "employerBlock": { "visible": false },
+    "ytdBlock": { "visible": true, "label": "Year to Date (Tax Year)" },
+    "footer": { "labels": { "net": "Net Pay (£)" } }
+  },
+  "reportMappings": [
+    { "report_code": "employee_master", "field_key": "national_id", "column_label": "NI Number", "source": "dynamic:national_id", "format": "masked" },
+    { "report_code": "rti_fps", "field_key": "tax_code", "column_label": "Tax Code", "source": "dynamic:tax_code" }
+  ],
+  "dataRetention": { "payroll_years": 6, "employee_after_exit_years": 6, "gdpr": true }
+}

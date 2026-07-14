@@ -1,0 +1,147 @@
+{
+  "$schema": "hv360-country-template-v1",
+  "country": {
+    "code": "BH", "name": "Bahrain", "currency_code": "BHD", "currency_decimals": 3,
+    "date_format": "DD/MM/YYYY", "number_locale": "en", "timezone": "Asia/Bahrain",
+    "payroll_frequency": "monthly", "weekend_days": [5, 6],
+    "default_working_days": 26, "daily_hours": 8
+  },
+  "flags": {
+    "income_tax": false, "social_insurance": true, "eosb": true,
+    "gratuity": false, "wps": true
+  },
+  "identity": {
+    "national_id_label": "CPR Number",
+    "national_id_validation": { "regex": "^\\d{9}$", "checksum": "bh_cpr_checkdigit" },
+    "tax_id_label": null
+  },
+  "employeeFields": [
+    { "field_key": "national_id", "field_label": "CPR Number", "field_label_i18n": { "ar": "الرقم الشخصي" },
+      "field_type": "text", "section_name": "Personal", "is_required": true, "is_identity_field": true,
+      "is_sensitive": true, "validation_rule": { "regex": "^\\d{9}$" }, "display_order": 1,
+      "help_text": "9-digit Central Population Registry number" },
+    { "field_key": "cpr_expiry", "field_label": "CPR Expiry Date", "field_type": "date",
+      "section_name": "Documents", "display_order": 2 },
+    { "field_key": "nationality_class", "field_label": "Nationality Class", "field_type": "select",
+      "options": [{ "value": "citizen", "label": "Bahraini" }, { "value": "expat", "label": "Expatriate" }],
+      "section_name": "Personal", "is_required": true, "display_order": 3, "maps_to_variable": "NATIONALITY_CLASS" },
+    { "field_key": "gosi_number", "field_label": "GOSI Number", "field_type": "text",
+      "section_name": "Statutory", "display_order": 10, "maps_to_variable": "GOSI_NUMBER" },
+    { "field_key": "lmra_id", "field_label": "LMRA ID", "field_type": "text", "section_name": "Statutory",
+      "display_order": 11, "dependency_condition": { "field": "nationality_class", "operator": "eq", "value": "expat" } },
+    { "field_key": "visa_number", "field_label": "Visa Number", "field_type": "text", "section_name": "Immigration",
+      "display_order": 20, "dependency_condition": { "field": "nationality_class", "operator": "eq", "value": "expat" } },
+    { "field_key": "visa_expiry", "field_label": "Visa Expiry", "field_type": "date", "section_name": "Immigration", "display_order": 21 },
+    { "field_key": "work_permit_number", "field_label": "Work Permit Number", "field_type": "text",
+      "section_name": "Immigration", "display_order": 22,
+      "dependency_condition": { "field": "nationality_class", "operator": "eq", "value": "expat" } },
+    { "field_key": "work_permit_expiry", "field_label": "Work Permit Expiry", "field_type": "date", "section_name": "Immigration", "display_order": 23 }
+  ],
+  "addressFormat": {
+    "fields": [
+      { "key": "flat", "label": "Flat", "display_order": 1 },
+      { "key": "building", "label": "Building", "required": true, "display_order": 2 },
+      { "key": "road", "label": "Road", "display_order": 3 },
+      { "key": "block", "label": "Block", "required": true, "validation": { "regex": "^\\d{3,4}$" }, "display_order": 4 },
+      { "key": "governorate", "label": "Governorate", "type": "select",
+        "options": ["Capital", "Muharraq", "Northern", "Southern"], "display_order": 5 }
+    ],
+    "display_template": "Flat {{flat}}, Bldg {{building}}, Road {{road}}, Block {{block}}, {{governorate}}"
+  },
+  "documents": [
+    { "document_code": "cpr_copy", "document_name": "CPR Copy", "is_mandatory": true, "has_expiry": true, "expiry_notify_days": [90, 60, 30] },
+    { "document_code": "passport_copy", "document_name": "Passport Copy", "is_mandatory": true, "has_expiry": true },
+    { "document_code": "visa_copy", "document_name": "Visa Copy", "is_mandatory": true, "has_expiry": true,
+      "applicable_when": { "nationality_class": "expat" } },
+    { "document_code": "work_permit", "document_name": "Work Permit", "is_mandatory": true, "has_expiry": true,
+      "applicable_when": { "nationality_class": "expat" } },
+    { "document_code": "gosi_registration", "document_name": "GOSI Registration", "is_mandatory": false }
+  ],
+  "payrollComponents": [
+    { "component_code": "BASIC", "component_name": "Basic Salary", "component_type": "earning", "calculation_type": "fixed",
+      "include_in_social_base": true, "include_in_eosb_base": true, "is_prorated": true, "calculation_order": 10 },
+    { "component_code": "HOUSING", "component_name": "Housing Allowance", "component_type": "earning", "calculation_type": "fixed",
+      "include_in_social_base": true, "calculation_order": 20 },
+    { "component_code": "TRANSPORT", "component_name": "Transport Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 30 },
+    { "component_code": "FIXED_ALW", "component_name": "Fixed Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 40 },
+    { "component_code": "OTHER_ALW", "component_name": "Other Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 50 },
+    { "component_code": "OT", "component_name": "Overtime", "component_type": "earning", "calculation_type": "formula",
+      "formula": "BASIC / WORKING_DAYS / DAILY_HOURS * OT_HOURS * OT_MULTIPLIER", "is_prorated": false, "calculation_order": 60 },
+    { "component_code": "GOSI_EE", "component_name": "GOSI (Employee)", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_GOSI", "is_statutory": true, "statutory_module_code": "GOSI", "calculation_order": 100 },
+    { "component_code": "LOAN", "component_name": "Loan Deduction", "component_type": "deduction", "calculation_type": "fixed", "is_recurring": true, "calculation_order": 110 },
+    { "component_code": "ADV", "component_name": "Salary Advance", "component_type": "deduction", "calculation_type": "fixed", "calculation_order": 120 },
+    { "component_code": "ABSENCE", "component_name": "Absence Deduction", "component_type": "deduction", "calculation_type": "formula",
+      "formula": "ROUND(BASIC / CALENDAR_DAYS * ABSENT_DAYS, 3)", "calculation_order": 130 },
+    { "component_code": "GOSI_ER", "component_name": "GOSI (Employer)", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_GOSI", "is_statutory": true, "statutory_module_code": "GOSI", "calculation_order": 200 },
+    { "component_code": "LMRA_FEE", "component_name": "LMRA Fee", "component_type": "employer_contribution", "calculation_type": "fixed",
+      "applicable_nationality": "expat", "statutory_module_code": "LMRA", "calculation_order": 210 },
+    { "component_code": "EOSB_PROV", "component_name": "EOSB Provision", "component_type": "provision", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_EOSB", "applicable_nationality": "expat", "calculation_order": 220 }
+  ],
+  "statutoryModules": [
+    { "module_code": "GOSI", "module_name": "Social Insurance (SIO)", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "gosi_citizen_employee_pct", "rule_value": 0.08, "effective_from": "2024-01-01" },
+        { "rule_key": "gosi_citizen_employer_pct", "rule_value": 0.13, "effective_from": "2024-01-01" },
+        { "rule_key": "gosi_expat_employee_pct", "rule_value": 0.01, "effective_from": "2024-01-01" },
+        { "rule_key": "gosi_expat_employer_pct", "rule_value": 0.03, "effective_from": "2024-01-01" }
+      ] },
+    { "module_code": "LMRA", "module_name": "Labour Market Regulatory Authority", "category": "labour" },
+    { "module_code": "WPS", "module_name": "Wage Protection System", "category": "wage_protection" }
+  ],
+  "taxRules": [],
+  "eosbRules": [
+    { "rule_code": "BH_EOSB", "rule_name": "End of Service Benefit (Labour Law Art. 116)",
+      "eligibility_months": 12, "calculation_base": "basic", "day_divisor": 30,
+      "accrual_method": "monthly_provision", "nationality_dependency": "expat_only",
+      "tier_bands": [
+        { "fromYears": 0, "toYears": 3, "daysPerYear": 15 },
+        { "fromYears": 3, "toYears": null, "daysPerYear": 30 }
+      ],
+      "termination_factors": [
+        { "reason": "Termination", "factor": 1 },
+        { "reason": "Resignation", "byService": [
+          { "fromYears": 0, "toYears": 3, "factor": 0.3333 },
+          { "fromYears": 3, "toYears": 5, "factor": 0.6667 },
+          { "fromYears": 5, "toYears": null, "factor": 1 } ] }
+      ] }
+  ],
+  "leavePolicies": [
+    { "leave_code": "ANNUAL", "leave_name": "Annual Leave", "days_per_year": 30, "accrual_method": "monthly_accrual",
+      "carry_forward": true, "max_carry_forward": 15, "encashment_allowed": true, "encashment_base": "basic",
+      "is_statutory": true, "statutory_ref": "BH Labour Law Art. 58" },
+    { "leave_code": "SICK", "leave_name": "Sick Leave", "days_per_year": 55,
+      "paid_tiers": [ { "days": 15, "payPct": 100 }, { "days": 20, "payPct": 50 }, { "days": 20, "payPct": 0 } ],
+      "is_statutory": true },
+    { "leave_code": "MATERNITY", "leave_name": "Maternity Leave", "days_per_year": 60, "gender_specific": "Female",
+      "paid_tiers": [ { "days": 60, "payPct": 100 } ], "is_statutory": true },
+    { "leave_code": "HAJJ", "leave_name": "Hajj Leave", "days_per_year": 14, "eligibility_months": 60, "is_statutory": true }
+  ],
+  "overtimeRules": [
+    { "rule_code": "NORMAL_OT", "multiplier": 1.25, "basis": "hourly_from_monthly" },
+    { "rule_code": "HOLIDAY_OT", "multiplier": 1.5, "basis": "hourly_from_monthly" }
+  ],
+  "holidays": [
+    { "name": "New Year's Day", "holiday_type": "public", "start_date": "2026-01-01", "end_date": "2026-01-01" },
+    { "name": "Eid Al Fitr", "holiday_type": "religious", "start_date": "2026-03-20", "end_date": "2026-03-22", "is_tentative": true },
+    { "name": "Labour Day", "holiday_type": "public", "start_date": "2026-05-01", "end_date": "2026-05-01" },
+    { "name": "Eid Al Adha", "holiday_type": "religious", "start_date": "2026-05-27", "end_date": "2026-05-29", "is_tentative": true },
+    { "name": "National Day", "holiday_type": "national", "start_date": "2026-12-16", "end_date": "2026-12-17" }
+  ],
+  "payslipTemplate": {
+    "identity": [ { "fieldKey": "national_id", "label": "CPR Number", "mask": "none" }, { "fieldKey": "gosi_number", "label": "GOSI No." } ],
+    "earnings": { "componentTypes": ["earning"] },
+    "deductions": { "componentTypes": ["deduction"] },
+    "employerBlock": { "visible": true, "componentTypes": ["employer_contribution"] },
+    "ytdBlock": { "visible": false },
+    "footer": { "labels": { "net": "Net Pay (BHD)" } }
+  },
+  "reportMappings": [
+    { "report_code": "employee_master", "field_key": "national_id", "column_label": "CPR Number", "source": "dynamic:national_id", "format": "masked" },
+    { "report_code": "employee_master", "field_key": "gosi_number", "column_label": "GOSI Number", "source": "dynamic:gosi_number" },
+    { "report_code": "payroll_register", "field_key": "gosi_ee", "column_label": "GOSI Employee", "source": "component:GOSI_EE", "format": "currency" }
+  ],
+  "dataRetention": { "payroll_years": 10, "employee_after_exit_years": 5 }
+}
