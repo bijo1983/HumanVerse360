@@ -1,0 +1,176 @@
+{
+  "$schema": "hv360-country-template-v1",
+  "country": {
+    "code": "US", "name": "United States", "currency_code": "USD", "currency_decimals": 2,
+    "date_format": "MM/DD/YYYY", "number_locale": "en-US", "timezone": "America/New_York",
+    "payroll_frequency": "semi_monthly", "weekend_days": [6, 7],
+    "default_working_days": 21.67, "daily_hours": 8
+  },
+  "flags": { "income_tax": true, "social_insurance": true, "eosb": false, "gratuity": false, "wps": false },
+  "identity": {
+    "national_id_label": "SSN",
+    "national_id_validation": { "regex": "^\\d{3}-?\\d{2}-?\\d{4}$" },
+    "tax_id_label": "SSN"
+  },
+  "taxYear": { "label_format": "{YYYY}", "start_month": 1, "start_day": 1 },
+  "employeeFields": [
+    { "field_key": "national_id", "field_label": "SSN", "field_type": "masked", "section_name": "Personal",
+      "is_required": true, "is_identity_field": true, "is_sensitive": true,
+      "validation_rule": { "regex": "^\\d{3}-?\\d{2}-?\\d{4}$" }, "display_order": 1, "placeholder": "XXX-XX-XXXX" },
+    { "field_key": "w4_filing_status", "field_label": "Federal Filing Status (W-4)", "field_type": "select",
+      "options": [ { "value": "single", "label": "Single or Married filing separately" },
+                   { "value": "married_joint", "label": "Married filing jointly" },
+                   { "value": "head_household", "label": "Head of household" } ],
+      "is_required": true, "section_name": "Tax", "display_order": 10, "maps_to_variable": "W4_FILING_STATUS" },
+    { "field_key": "w4_multiple_jobs", "field_label": "W-4 Step 2: Multiple Jobs", "field_type": "checkbox",
+      "section_name": "Tax", "display_order": 11, "maps_to_variable": "W4_STEP2" },
+    { "field_key": "w4_dependents_amount", "field_label": "W-4 Step 3: Dependents Credit ($)", "field_type": "number",
+      "default_value": "0", "section_name": "Tax", "display_order": 12, "maps_to_variable": "W4_DEPENDENTS" },
+    { "field_key": "w4_other_income", "field_label": "W-4 Step 4a: Other Income", "field_type": "number", "section_name": "Tax", "display_order": 13 },
+    { "field_key": "w4_extra_withholding", "field_label": "W-4 Step 4c: Extra Withholding", "field_type": "number",
+      "default_value": "0", "section_name": "Tax", "display_order": 14, "maps_to_variable": "W4_EXTRA_WH" },
+    { "field_key": "state_tax_state", "field_label": "State Tax Jurisdiction", "field_type": "select",
+      "options_source": "us_states", "is_required": true, "section_name": "Tax", "display_order": 15, "maps_to_variable": "TAX_STATE" },
+    { "field_key": "flsa_status", "field_label": "FLSA Status", "field_type": "select",
+      "options": [ { "value": "non_exempt", "label": "Non-Exempt (OT eligible)" }, { "value": "exempt", "label": "Exempt" } ],
+      "is_required": true, "section_name": "Employment", "display_order": 20, "maps_to_variable": "FLSA_STATUS" },
+    { "field_key": "i9_verified", "field_label": "I-9 Verified", "field_type": "checkbox", "section_name": "Compliance", "display_order": 30 },
+    { "field_key": "plan_401k_pct", "field_label": "401(k) Contribution %", "field_type": "number",
+      "default_value": "0", "section_name": "Benefits", "display_order": 40, "maps_to_variable": "K401_PCT" },
+    { "field_key": "plan_401k_match_pct", "field_label": "401(k) Employer Match %", "field_type": "number",
+      "default_value": "0", "section_name": "Benefits", "display_order": 41, "maps_to_variable": "K401_MATCH_PCT" }
+  ],
+  "addressFormat": {
+    "fields": [
+      { "key": "address_line1", "label": "Address Line 1", "required": true, "display_order": 1 },
+      { "key": "address_line2", "label": "Address Line 2", "display_order": 2 },
+      { "key": "city", "label": "City", "required": true, "display_order": 3 },
+      { "key": "state", "label": "State", "type": "select", "options_source": "us_states", "required": true, "display_order": 4 },
+      { "key": "zip", "label": "ZIP Code", "required": true, "validation": { "regex": "^\\d{5}(-\\d{4})?$" }, "display_order": 5 },
+      { "key": "county", "label": "County", "display_order": 6 }
+    ]
+  },
+  "documents": [
+    { "document_code": "ssn_card", "document_name": "Social Security Card", "is_mandatory": true },
+    { "document_code": "i9_form", "document_name": "Form I-9", "is_mandatory": true, "notes": "Retention: 3 years after hire or 1 year after termination, whichever later" },
+    { "document_code": "w4_form", "document_name": "Form W-4", "is_mandatory": true },
+    { "document_code": "state_tax_form", "document_name": "State Withholding Form", "is_mandatory": false, "applicable_when": { "state_has_income_tax": true } },
+    { "document_code": "direct_deposit", "document_name": "Direct Deposit Authorization", "is_mandatory": true }
+  ],
+  "payrollComponents": [
+    { "component_code": "REGULAR", "component_name": "Regular Pay", "component_type": "earning", "calculation_type": "fixed",
+      "is_taxable": true, "include_in_social_base": true, "calculation_order": 10 },
+    { "component_code": "OT", "component_name": "Overtime Pay", "component_type": "earning", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_FLSA_OT", "is_taxable": true, "include_in_social_base": true, "calculation_order": 20 },
+    { "component_code": "BONUS", "component_name": "Bonus", "component_type": "earning", "calculation_type": "fixed",
+      "is_recurring": false, "is_taxable": true, "include_in_social_base": true, "calculation_order": 30 },
+    { "component_code": "COMMISSION", "component_name": "Commission", "component_type": "earning", "calculation_type": "fixed",
+      "is_taxable": true, "include_in_social_base": true, "calculation_order": 40 },
+    { "component_code": "ALLOWANCE", "component_name": "Allowance", "component_type": "earning", "calculation_type": "fixed", "is_taxable": true, "calculation_order": 50 },
+    { "component_code": "K401_EE", "component_name": "401(k) Contribution", "component_type": "deduction",
+      "calculation_type": "formula", "formula": "ROUND(MIN(GROSS * K401_PCT / 100, LOOKUP('k401_annual_limit') - YTD_K401), 2)",
+      "is_taxable": false, "calculation_order": 90, "notes": "Pre-tax: reduces federal/state taxable base, not FICA base" },
+    { "component_code": "HEALTH_INS_EE", "component_name": "Health Insurance (Employee)", "component_type": "deduction",
+      "calculation_type": "fixed", "is_taxable": false, "calculation_order": 95, "notes": "Sec 125 pre-tax incl. FICA base reduction" },
+    { "component_code": "FED_TAX", "component_name": "Federal Income Tax", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_FEDERAL_TAX", "is_statutory": true, "statutory_module_code": "FED_WH", "calculation_order": 100 },
+    { "component_code": "STATE_TAX", "component_name": "State Income Tax", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_STATE_TAX", "is_statutory": true, "statutory_module_code": "STATE_WH", "calculation_order": 110 },
+    { "component_code": "SS_EE", "component_name": "Social Security", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_FICA", "is_statutory": true, "statutory_module_code": "FICA", "calculation_order": 120 },
+    { "component_code": "MEDICARE_EE", "component_name": "Medicare", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_FICA", "is_statutory": true, "statutory_module_code": "FICA", "calculation_order": 130 },
+    { "component_code": "SS_ER", "component_name": "Employer Social Security", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_FICA", "calculation_order": 200 },
+    { "component_code": "MEDICARE_ER", "component_name": "Employer Medicare", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_FICA", "calculation_order": 210 },
+    { "component_code": "FUTA", "component_name": "Federal Unemployment Tax", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_FUTA", "calculation_order": 220 },
+    { "component_code": "SUTA", "component_name": "State Unemployment Tax", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_SUTA", "calculation_order": 230 },
+    { "component_code": "K401_MATCH", "component_name": "401(k) Employer Match", "component_type": "employer_contribution",
+      "calculation_type": "formula", "formula": "ROUND(MIN(K401_EE, GROSS * K401_MATCH_PCT / 100), 2)", "calculation_order": 240 }
+  ],
+  "statutoryModules": [
+    { "module_code": "FED_WH", "module_name": "Federal Withholding (W-4)", "category": "tax" },
+    { "module_code": "STATE_WH", "module_name": "State Withholding", "category": "tax" },
+    { "module_code": "FICA", "module_name": "Social Security & Medicare", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "ss_rate_pct", "rule_value": 0.062, "effective_from": "2026-01-01" },
+        { "rule_key": "ss_wage_base_limit", "rule_value": 184500, "effective_from": "2026-01-01" },
+        { "rule_key": "medicare_rate_pct", "rule_value": 0.0145, "effective_from": "2026-01-01" },
+        { "rule_key": "medicare_additional_pct", "rule_value": 0.009, "effective_from": "2026-01-01" },
+        { "rule_key": "medicare_additional_threshold", "rule_value": 200000, "effective_from": "2026-01-01" }
+      ],
+      "note": "Illustrative — refresh annually from SSA/IRS via legislation pack" },
+    { "module_code": "FUTA", "module_name": "Federal Unemployment", "category": "tax",
+      "rules": [
+        { "rule_key": "futa_rate_pct", "rule_value": 0.006, "effective_from": "2026-01-01" },
+        { "rule_key": "futa_wage_base", "rule_value": 7000, "effective_from": "2026-01-01" }
+      ] },
+    { "module_code": "SUTA", "module_name": "State Unemployment", "category": "tax",
+      "rules": [ { "rule_key": "suta_rate_pct", "rule_value": "company_setting", "effective_from": "2026-01-01" } ] },
+    { "module_code": "W4", "module_name": "W-4 Management", "category": "tax" },
+    { "module_code": "I9", "module_name": "I-9 Employment Eligibility", "category": "identity" },
+    { "module_code": "K401", "module_name": "401(k) Plan", "category": "benefits",
+      "rules": [ { "rule_key": "k401_annual_limit", "rule_value": 24000, "effective_from": "2026-01-01" } ] }
+  ],
+  "taxRules": [
+    { "tax_code": "US_FED", "tax_name": "Federal Income Tax", "tax_year": "2026", "regime": "single",
+      "calculation_method": "slab", "annualization": "annualize_ytd",
+      "slabs": [
+        { "income_from": 0, "income_to": 12400, "rate_pct": 10 },
+        { "income_from": 12400, "income_to": 50400, "rate_pct": 12 },
+        { "income_from": 50400, "income_to": 105700, "rate_pct": 22 },
+        { "income_from": 105700, "income_to": 201775, "rate_pct": 24 },
+        { "income_from": 201775, "income_to": 256225, "rate_pct": 32 },
+        { "income_from": 256225, "income_to": 640600, "rate_pct": 35 },
+        { "income_from": 640600, "income_to": null, "rate_pct": 37 }
+      ],
+      "extras": { "standard_deduction": 16100 },
+      "note": "Illustrative Pub 15-T percentage-method shape — load official tables via legislation pack" },
+    { "tax_code": "US_STATE", "tax_name": "California State Tax", "tax_year": "2026", "jurisdiction": "CA",
+      "calculation_method": "slab", "annualization": "annualize_ytd",
+      "slabs": [ { "income_from": 0, "income_to": 10756, "rate_pct": 1 }, { "income_from": 10756, "income_to": null, "rate_pct": 2 } ],
+      "note": "Truncated example; each taxing state gets its own rule rows. No-tax states (TX, FL, WA…) simply have no rows" }
+  ],
+  "eosbRules": [
+    { "rule_code": "US_FINAL_PAY", "rule_name": "Final Pay & PTO Payout", "eligibility_months": 0,
+      "calculation_base": "custom_formula",
+      "base_formula": "PRORATE(REGULAR, PAID_DAYS, WORKING_DAYS) + IF(LOOKUP('pto_payout_required_' + STATE) == 1, PTO_BALANCE_DAYS * (REGULAR / WORKING_DAYS), 0)",
+      "day_divisor": 1, "accrual_method": "on_settlement_only", "tier_bands": [], "termination_factors": [],
+      "notes": "PTO payout obligation per state rule rows (e.g. CA=required, most states=policy-driven); 401(k) settlement is informational block on final payslip" }
+  ],
+  "leavePolicies": [
+    { "leave_code": "PTO", "leave_name": "Paid Time Off", "days_per_year": 15, "accrual_method": "per_hours_worked",
+      "carry_forward": true, "max_carry_forward": 5, "encashment_allowed": true, "notes": "Company-policy driven; no federal statutory minimum" },
+    { "leave_code": "SICK", "leave_name": "Sick Leave", "days_per_year": 5, "notes": "State/city mandates vary; jurisdiction rows override" },
+    { "leave_code": "FMLA", "leave_name": "FMLA (Unpaid)", "days_per_year": 84, "is_statutory": true, "eligibility_months": 12 }
+  ],
+  "overtimeRules": [
+    { "rule_code": "US_FLSA_WEEKLY", "multiplier": 1.5, "basis": "weekly_threshold", "threshold_hours": 40,
+      "applies_to": { "flsa_status": "non_exempt" } }
+  ],
+  "holidays": [
+    { "name": "New Year's Day", "holiday_type": "public", "start_date": "2026-01-01", "end_date": "2026-01-01" },
+    { "name": "Martin Luther King Jr. Day", "holiday_type": "public", "start_date": "2026-01-19", "end_date": "2026-01-19" },
+    { "name": "Memorial Day", "holiday_type": "public", "start_date": "2026-05-25", "end_date": "2026-05-25" },
+    { "name": "Independence Day", "holiday_type": "public", "start_date": "2026-07-03", "end_date": "2026-07-03" },
+    { "name": "Labor Day", "holiday_type": "public", "start_date": "2026-09-07", "end_date": "2026-09-07" },
+    { "name": "Thanksgiving", "holiday_type": "public", "start_date": "2026-11-26", "end_date": "2026-11-26" },
+    { "name": "Christmas Day", "holiday_type": "public", "start_date": "2026-12-25", "end_date": "2026-12-25" }
+  ],
+  "payslipTemplate": {
+    "identity": [ { "fieldKey": "national_id", "label": "SSN", "mask": "last4" }, { "fieldKey": "w4_filing_status", "label": "Filing Status" } ],
+    "earnings": { "componentTypes": ["earning"], "showHoursAndRate": true },
+    "deductions": { "componentTypes": ["deduction"], "groupPreTax": true },
+    "employerBlock": { "visible": false },
+    "ytdBlock": { "visible": true, "label": "Year to Date" },
+    "footer": { "labels": { "net": "Net Pay ($)" } }
+  },
+  "reportMappings": [
+    { "report_code": "employee_master", "field_key": "national_id", "column_label": "SSN", "source": "dynamic:national_id", "format": "masked" },
+    { "report_code": "payroll_register", "field_key": "fed_tax", "column_label": "Federal Tax", "source": "component:FED_TAX", "format": "currency" }
+  ],
+  "dataRetention": { "payroll_years": 4, "i9_rule": "3y_hire_or_1y_term", "employee_after_exit_years": 4 }
+}

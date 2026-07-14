@@ -1,0 +1,177 @@
+{
+  "$schema": "hv360-country-template-v1",
+  "country": {
+    "code": "IN", "name": "India", "currency_code": "INR", "currency_decimals": 2,
+    "date_format": "DD/MM/YYYY", "number_locale": "en-IN", "timezone": "Asia/Kolkata",
+    "payroll_frequency": "monthly", "weekend_days": [6, 7],
+    "default_working_days": 26, "daily_hours": 8
+  },
+  "flags": { "income_tax": true, "social_insurance": true, "eosb": false, "gratuity": true, "wps": false },
+  "identity": {
+    "national_id_label": "Aadhaar Number",
+    "national_id_validation": { "regex": "^\\d{12}$", "checksum": "aadhaar_verhoeff" },
+    "tax_id_label": "PAN"
+  },
+  "taxYear": { "label_format": "FY{YYYY}-{YY+1}", "start_month": 4, "start_day": 1 },
+  "employeeFields": [
+    { "field_key": "national_id", "field_label": "Aadhaar Number", "field_label_i18n": { "hi": "आधार संख्या" },
+      "field_type": "text", "section_name": "Personal", "is_required": true, "is_identity_field": true,
+      "is_sensitive": true, "validation_rule": { "regex": "^\\d{12}$", "checksum": "aadhaar_verhoeff" }, "display_order": 1 },
+    { "field_key": "pan_number", "field_label": "PAN Number", "field_type": "text", "section_name": "Statutory",
+      "is_required": true, "is_sensitive": true, "validation_rule": { "regex": "^[A-Z]{5}\\d{4}[A-Z]$" },
+      "display_order": 10, "maps_to_variable": "PAN" },
+    { "field_key": "uan", "field_label": "UAN", "field_type": "text", "section_name": "Statutory",
+      "validation_rule": { "regex": "^\\d{12}$" }, "display_order": 11, "help_text": "Universal Account Number (EPFO)" },
+    { "field_key": "pf_number", "field_label": "PF Number", "field_type": "text", "section_name": "Statutory", "display_order": 12 },
+    { "field_key": "esi_number", "field_label": "ESI Number", "field_type": "text", "section_name": "Statutory", "display_order": 13,
+      "validation_rule": { "regex": "^\\d{10,17}$" } },
+    { "field_key": "pt_state", "field_label": "Professional Tax State", "field_type": "select",
+      "options_source": "in_states", "section_name": "Statutory", "display_order": 14, "maps_to_variable": "PT_STATE" },
+    { "field_key": "tax_regime", "field_label": "Income Tax Regime", "field_type": "select",
+      "options": [ { "value": "new", "label": "New Regime" }, { "value": "old", "label": "Old Regime" } ],
+      "default_value": "new", "section_name": "Statutory", "display_order": 15, "maps_to_variable": "TAX_REGIME" },
+    { "field_key": "bank_ifsc", "field_label": "Bank IFSC Code", "field_type": "text", "section_name": "Bank",
+      "is_required": true, "validation_rule": { "regex": "^[A-Z]{4}0[A-Z0-9]{6}$" }, "display_order": 20 }
+  ],
+  "addressFormat": {
+    "fields": [
+      { "key": "address_line1", "label": "Address Line 1", "required": true, "display_order": 1 },
+      { "key": "address_line2", "label": "Address Line 2", "display_order": 2 },
+      { "key": "city", "label": "City", "required": true, "display_order": 3 },
+      { "key": "district", "label": "District", "display_order": 4 },
+      { "key": "state", "label": "State", "type": "select", "options_source": "in_states", "required": true, "display_order": 5 },
+      { "key": "pin_code", "label": "PIN Code", "required": true, "validation": { "regex": "^\\d{6}$" }, "display_order": 6 }
+    ]
+  },
+  "documents": [
+    { "document_code": "aadhaar", "document_name": "Aadhaar Card", "is_mandatory": true },
+    { "document_code": "pan", "document_name": "PAN Card", "is_mandatory": true },
+    { "document_code": "bank_proof", "document_name": "Bank Proof (Cancelled Cheque/Passbook)", "is_mandatory": true },
+    { "document_code": "pf_declaration", "document_name": "PF Declaration (Form 11)", "is_mandatory": true },
+    { "document_code": "esi_declaration", "document_name": "ESI Declaration (Form 1)", "is_mandatory": false,
+      "applicable_when": { "esi_eligible": true } },
+    { "document_code": "form_12b", "document_name": "Form 12B (Previous Employer Income)", "is_mandatory": false }
+  ],
+  "payrollComponents": [
+    { "component_code": "BASIC", "component_name": "Basic", "component_type": "earning", "calculation_type": "fixed",
+      "is_taxable": true, "include_in_social_base": true, "include_in_eosb_base": true, "calculation_order": 10 },
+    { "component_code": "HRA", "component_name": "House Rent Allowance", "component_type": "earning",
+      "calculation_type": "formula", "formula": "ROUND(BASIC * 0.5, 2)", "is_taxable": true, "calculation_order": 20 },
+    { "component_code": "CONVEYANCE", "component_name": "Conveyance Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 30 },
+    { "component_code": "MEDICAL_ALW", "component_name": "Medical Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 40 },
+    { "component_code": "SPECIAL_ALW", "component_name": "Special Allowance", "component_type": "earning", "calculation_type": "fixed", "calculation_order": 50 },
+    { "component_code": "BONUS", "component_name": "Bonus", "component_type": "earning", "calculation_type": "fixed", "is_recurring": false, "calculation_order": 60 },
+    { "component_code": "OT", "component_name": "Overtime", "component_type": "earning", "calculation_type": "formula",
+      "formula": "BASIC / WORKING_DAYS / DAILY_HOURS * OT_HOURS * OT_MULTIPLIER", "calculation_order": 70 },
+    { "component_code": "PF_EE", "component_name": "Provident Fund", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_PF", "is_statutory": true, "statutory_module_code": "PF", "calculation_order": 100 },
+    { "component_code": "ESI_EE", "component_name": "ESI", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_ESI", "is_statutory": true, "statutory_module_code": "ESI", "calculation_order": 110 },
+    { "component_code": "PT", "component_name": "Professional Tax", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_PT", "is_statutory": true, "statutory_module_code": "PT", "calculation_order": 120 },
+    { "component_code": "TDS", "component_name": "Income Tax (TDS)", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_TDS", "is_statutory": true, "statutory_module_code": "TDS", "calculation_order": 130 },
+    { "component_code": "LWF_EE", "component_name": "Labour Welfare Fund", "component_type": "deduction", "calculation_type": "statutory",
+      "statutory_function": "CALCULATE_LWF", "is_statutory": true, "statutory_module_code": "LWF", "calculation_order": 140 },
+    { "component_code": "LOAN", "component_name": "Loan Deduction", "component_type": "deduction", "calculation_type": "fixed", "calculation_order": 150 },
+    { "component_code": "ADV", "component_name": "Salary Advance", "component_type": "deduction", "calculation_type": "fixed", "calculation_order": 160 },
+    { "component_code": "PF_ER", "component_name": "Employer PF", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_PF", "calculation_order": 200 },
+    { "component_code": "ESI_ER", "component_name": "Employer ESI", "component_type": "employer_contribution",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_ESI", "calculation_order": 210 },
+    { "component_code": "GRATUITY_PROV", "component_name": "Gratuity Provision", "component_type": "provision",
+      "calculation_type": "statutory", "statutory_function": "CALCULATE_GRATUITY", "calculation_order": 220 },
+    { "component_code": "BONUS_PROV", "component_name": "Bonus Provision", "component_type": "provision",
+      "calculation_type": "formula", "formula": "ROUND(MIN(BASIC, 7000) * 0.0833, 2)", "calculation_order": 230 }
+  ],
+  "statutoryModules": [
+    { "module_code": "PF", "module_name": "Employees' Provident Fund", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "pf_employee_pct", "rule_value": 0.12, "effective_from": "2024-04-01" },
+        { "rule_key": "pf_employer_pct", "rule_value": 0.12, "effective_from": "2024-04-01" },
+        { "rule_key": "pf_eps_pct", "rule_value": 0.0833, "effective_from": "2024-04-01" },
+        { "rule_key": "pf_wage_cap", "rule_value": 15000, "effective_from": "2024-04-01" },
+        { "rule_key": "pf_admin_pct", "rule_value": 0.005, "effective_from": "2024-04-01" }
+      ] },
+    { "module_code": "ESI", "module_name": "Employees' State Insurance", "category": "social_insurance",
+      "rules": [
+        { "rule_key": "esi_employee_pct", "rule_value": 0.0075, "effective_from": "2024-04-01" },
+        { "rule_key": "esi_employer_pct", "rule_value": 0.0325, "effective_from": "2024-04-01" },
+        { "rule_key": "esi_wage_ceiling", "rule_value": 21000, "effective_from": "2024-04-01" }
+      ] },
+    { "module_code": "PT", "module_name": "Professional Tax (State)", "category": "tax",
+      "rules": [
+        { "rule_key": "pt_slabs_KA", "rule_value": [ { "upTo": 24999, "amount": 0 }, { "upTo": null, "amount": 200 } ], "effective_from": "2024-04-01" },
+        { "rule_key": "pt_slabs_MH", "rule_value": [ { "upTo": 7500, "amount": 0 }, { "upTo": 10000, "amount": 175 }, { "upTo": null, "amount": 200, "februaryAmount": 300 } ], "effective_from": "2024-04-01" }
+      ] },
+    { "module_code": "TDS", "module_name": "Income Tax TDS (Sec 192)", "category": "tax" },
+    { "module_code": "LWF", "module_name": "Labour Welfare Fund (State)", "category": "labour" }
+  ],
+  "taxRules": [
+    { "tax_code": "IN_TDS", "tax_name": "Income Tax", "tax_year": "FY2026-27", "regime": "new",
+      "calculation_method": "slab", "annualization": "annualize_ytd",
+      "slabs": [
+        { "income_from": 0, "income_to": 400000, "rate_pct": 0 },
+        { "income_from": 400000, "income_to": 800000, "rate_pct": 5 },
+        { "income_from": 800000, "income_to": 1200000, "rate_pct": 10 },
+        { "income_from": 1200000, "income_to": 1600000, "rate_pct": 15 },
+        { "income_from": 1600000, "income_to": 2000000, "rate_pct": 20 },
+        { "income_from": 2000000, "income_to": 2400000, "rate_pct": 25 },
+        { "income_from": 2400000, "income_to": null, "rate_pct": 30 }
+      ],
+      "extras": { "standard_deduction": 75000, "rebate_87a_limit": 1200000, "cess_pct": 4 },
+      "note": "Illustrative slabs — verify against the applicable Finance Act each year via legislation pack" },
+    { "tax_code": "IN_TDS", "tax_name": "Income Tax", "tax_year": "FY2026-27", "regime": "old",
+      "calculation_method": "slab", "annualization": "annualize_ytd",
+      "slabs": [
+        { "income_from": 0, "income_to": 250000, "rate_pct": 0 },
+        { "income_from": 250000, "income_to": 500000, "rate_pct": 5 },
+        { "income_from": 500000, "income_to": 1000000, "rate_pct": 20 },
+        { "income_from": 1000000, "income_to": null, "rate_pct": 30 }
+      ],
+      "extras": { "standard_deduction": 50000, "deduction_sections": ["80C", "80D", "HRA_EXEMPTION"], "cess_pct": 4 } }
+  ],
+  "eosbRules": [
+    { "rule_code": "IN_GRATUITY", "rule_name": "Gratuity (Payment of Gratuity Act 1972)",
+      "eligibility_months": 57, "calculation_base": "custom_formula",
+      "base_formula": "BASIC + DEARNESS_ALLOWANCE", "day_divisor": 26,
+      "accrual_method": "monthly_provision", "max_amount": 2000000,
+      "tier_bands": [ { "fromYears": 0, "toYears": null, "daysPerYear": 15 } ],
+      "termination_factors": [ { "reason": "Any", "factor": 1 } ],
+      "notes": "Years rounded: service > 6 months counts as full year" }
+  ],
+  "leavePolicies": [
+    { "leave_code": "EL", "leave_name": "Earned Leave", "days_per_year": 18, "accrual_method": "monthly_accrual",
+      "carry_forward": true, "max_carry_forward": 30, "encashment_allowed": true, "encashment_base": "basic" },
+    { "leave_code": "CL", "leave_name": "Casual Leave", "days_per_year": 12, "carry_forward": false },
+    { "leave_code": "SL", "leave_name": "Sick Leave", "days_per_year": 12 },
+    { "leave_code": "MATERNITY", "leave_name": "Maternity Leave", "days_per_year": 182, "gender_specific": "Female",
+      "is_statutory": true, "statutory_ref": "Maternity Benefit Act — 26 weeks" }
+  ],
+  "overtimeRules": [ { "rule_code": "NORMAL_OT", "multiplier": 2.0, "basis": "hourly_from_monthly", "notes": "Factories Act / S&E double rate where applicable" } ],
+  "holidays": [
+    { "name": "Republic Day", "holiday_type": "national", "start_date": "2026-01-26", "end_date": "2026-01-26" },
+    { "name": "Independence Day", "holiday_type": "national", "start_date": "2026-08-15", "end_date": "2026-08-15" },
+    { "name": "Gandhi Jayanti", "holiday_type": "national", "start_date": "2026-10-02", "end_date": "2026-10-02" },
+    { "name": "Diwali", "holiday_type": "religious", "start_date": "2026-11-08", "end_date": "2026-11-08", "is_tentative": true },
+    { "name": "Holi", "holiday_type": "religious", "jurisdiction": "north_states", "start_date": "2026-03-03", "end_date": "2026-03-03", "is_tentative": true }
+  ],
+  "payslipTemplate": {
+    "identity": [
+      { "fieldKey": "national_id", "label": "Aadhaar", "mask": "last4" },
+      { "fieldKey": "pan_number", "label": "PAN", "mask": "last4" },
+      { "fieldKey": "uan", "label": "UAN" }, { "fieldKey": "pf_number", "label": "PF No." }
+    ],
+    "earnings": { "componentTypes": ["earning"] },
+    "deductions": { "componentTypes": ["deduction"] },
+    "employerBlock": { "visible": false },
+    "ytdBlock": { "visible": true, "label": "FY To Date" },
+    "footer": { "labels": { "net": "Net Pay (₹)" }, "showRegime": true }
+  },
+  "reportMappings": [
+    { "report_code": "employee_master", "field_key": "national_id", "column_label": "Aadhaar Number", "source": "dynamic:national_id", "format": "masked" },
+    { "report_code": "employee_master", "field_key": "pan_number", "column_label": "PAN", "source": "dynamic:pan_number", "format": "masked" },
+    { "report_code": "pf_ecr", "field_key": "uan", "column_label": "UAN", "source": "dynamic:uan" }
+  ],
+  "dataRetention": { "payroll_years": 8, "employee_after_exit_years": 3 }
+}
