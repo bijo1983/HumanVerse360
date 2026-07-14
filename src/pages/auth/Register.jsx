@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { Shield, Check, ChevronRight, ChevronLeft, AlertCircle, Star, Users, Building2, Mail, RefreshCw } from 'lucide-react';
 import { FormField, Input, Select } from '../../components/ui/Form';
 import { useForm } from 'react-hook-form';
+import { useCountries } from '../../hooks/useCountryConfig';
 
 const PLAN_COLORS = {
   free: { bg: 'bg-secondary-50', border: 'border-secondary-200', badge: 'bg-secondary-100 text-secondary-600', btn: 'btn-secondary' },
@@ -37,24 +38,8 @@ const INDUSTRIES = [
   'Education', 'Real Estate', 'Transportation & Logistics', 'Consulting', 'Other',
 ];
 
-const GCC_COUNTRIES = [
-  { code: 'BH', name: 'Bahrain' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'QA', name: 'Qatar' },
-  { code: 'KW', name: 'Kuwait' },
-  { code: 'OM', name: 'Oman' },
-  { code: 'JO', name: 'Jordan' },
-  { code: 'EG', name: 'Egypt' },
-  { code: 'LB', name: 'Lebanon' },
-  { code: 'IN', name: 'India' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'PH', name: 'Philippines' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' },
-  { code: 'OTHER', name: 'Other' },
-];
+// Country list now comes from the countries table via useCountries()
+// (falls back to the static list in countryDefaults.js if the fetch fails).
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -71,6 +56,7 @@ export default function Register() {
   const navigate = useNavigate();
   const { registerCompany } = useAuth();
   const { data: plans = [] } = usePlans();
+  const { countries } = useCountries();
   const [step, setStep] = useState(0);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [error, setError] = useState('');
@@ -181,7 +167,7 @@ export default function Register() {
         phone: companyData.phone,
         industry: companyData.industry,
         countryCode: companyData.country_code,
-        country: GCC_COUNTRIES.find(c => c.code === companyData.country_code)?.name || companyData.country_code,
+        country: countries.find(c => c.code === companyData.country_code)?.name || companyData.country_code,
       });
       navigate('/');
     } catch (e) {
@@ -315,7 +301,7 @@ export default function Register() {
                 <FormField label="Country" required error={companyForm.formState.errors.country_code?.message}>
                   <Select {...companyForm.register('country_code', { required: 'Country is required' })}>
                     <option value="">Select country...</option>
-                    {GCC_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </Select>
                 </FormField>
               </form>
