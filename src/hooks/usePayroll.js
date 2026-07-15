@@ -311,6 +311,28 @@ export function useStatutoryContext() {
   return { countryCode, ruleRows, taxRules };
 }
 
+// Active EOSB/gratuity rule for a country (company override > platform template)
+export function useEosbRule(countryCode) {
+  return useQuery({
+    queryKey: ['eosb-rule', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('eosb_rules')
+        .select('*')
+        .eq('country_code', countryCode)
+        .eq('is_active', true)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      const rows = data || [];
+      return rows.find(r => r.company_id) ?? rows.find(r => !r.company_id) ?? null;
+    },
+  });
+}
+
 // Country-scoped payroll components (company override wins over platform template by code)
 export function usePayrollComponents(countryCode, companyId) {
   return useQuery({

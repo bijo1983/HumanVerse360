@@ -4,6 +4,9 @@ import { useEmployees } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { FormField, Select, Input } from '../../components/ui/Form';
 import { formatCurrency, formatDate, calculateIndemnity, getServiceYears, getServiceMonths, getCalendarDaysInMonth } from '../../lib/calculations';
+import { calculateEosb } from '../../lib/eosbEngine';
+import { isCitizenOf } from '../../lib/statutory';
+import { useEosbRule } from '../../hooks/usePayroll';
 import { differenceInDays, parseISO, format } from 'date-fns';
 
 export default function IndemnityPage() {
@@ -30,7 +33,9 @@ export default function IndemnityPage() {
 }
 
 function IndemnityCalculator() {
-  const { companyId } = useAuth();
+  const { companyId, company } = useAuth();
+  const countryCode = company?.country_code || 'BH';
+  const { data: eosbRule } = useEosbRule(countryCode);
   const { data: employees = [] } = useEmployees({}, companyId);
   const [empId, setEmpId] = useState('');
   const [terminationType, setTerminationType] = useState('Termination');
@@ -44,7 +49,20 @@ function IndemnityCalculator() {
     if (!selectedEmp) return;
     const basicSalary = selectedEmp.basic_salary || 0;
     const joining = selectedEmp.joining_date;
-    const res = calculateIndemnity(basicSalary, joining, endDate, terminationType);
+    // Bahrain keeps the legacy Art. 116 calculation (exact parity);
+    // other countries use their eosb_rules band configuration.
+    const res = countryCode === 'BH' || !eosbRule
+      ? calculateIndemnity(basicSalary, joining, endDate, terminationType)
+      : (() => {
+          const r = calculateEosb(eosbRule, {
+            baseSalary: basicSalary,
+            joiningDate: joining,
+            endDate,
+            terminationReason: terminationType,
+            isCitizen: isCitizenOf(countryCode, selectedEmp.nationality),
+          });
+          return { amount: r.amount, breakdown: r.breakdown.join(' · ') || eosbRule.rule_name };
+        })();
     const years = getServiceYears(joining, endDate);
     const months = getServiceMonths(joining, endDate);
     const days = differenceInDays(parseISO(endDate), parseISO(joining));
@@ -179,7 +197,9 @@ function IndemnityCalculator() {
 }
 
 function FinalSettlement() {
-  const { companyId } = useAuth();
+  const { companyId, company } = useAuth();
+  const countryCode = company?.country_code || 'BH';
+  const { data: eosbRule } = useEosbRule(countryCode);
   const { data: employees = [] } = useEmployees({}, companyId);
   const [empId, setEmpId] = useState('');
   const [terminationType, setTerminationType] = useState('Termination');
@@ -197,7 +217,18 @@ function FinalSettlement() {
     const basic = selectedEmp.basic_salary || 0;
     const gross = basic + (selectedEmp.housing_allowance || 0) +
       (selectedEmp.transport_allowance || 0) + (selectedEmp.food_allowance || 0) + (selectedEmp.other_allowances || 0);
-    const { amount: indemnity, breakdown } = calculateIndemnity(basic, selectedEmp.joining_date, endDate, terminationType);
+    const { amount: indemnity, breakdown } = countryCode === 'BH' || !eosbRule
+      ? calculateIndemnity(basic, selectedEmp.joining_date, endDate, terminationType)
+      : (() => {
+          const r = calculateEosb(eosbRule, {
+            baseSalary: basic,
+            joiningDate: selectedEmp.joining_date,
+            endDate,
+            terminationReason: terminationType,
+            isCitizen: isCitizenOf(countryCode, selectedEmp.nationality),
+          });
+          return { amount: r.amount, breakdown: r.breakdown.join(' · ') || eosbRule.rule_name };
+        })();
     const endDateObj = parseISO(endDate);
     const daysInMonth = getCalendarDaysInMonth(endDateObj);
     const dailyRate = gross / daysInMonth;
