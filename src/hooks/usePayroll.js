@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const DEFAULT_SETTINGS = {
   bahraini_employee_gosi_pct: 8,
@@ -257,6 +258,57 @@ export function useDeletePayrollRun(companyId) {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
   });
+}
+
+// Effective statutory rate rules for a country (consumed by src/lib/statutory.js)
+export function useStatutoryRules(countryCode) {
+  return useQuery({
+    queryKey: ['statutory-rules', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('country_statutory_rules')
+        .select('*')
+        .eq('country_code', countryCode)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// Active tax rules (+slabs) for a country
+export function useCountryTaxRules(countryCode) {
+  return useQuery({
+    queryKey: ['tax-rules', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('tax_rules')
+        .select('*, tax_slabs(*)')
+        .eq('country_code', countryCode)
+        .eq('is_active', true)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// Ready-to-use statutory context for the current company's country,
+// consumed by the payroll grid / computeStatutory().
+export function useStatutoryContext() {
+  const { company } = useAuth();
+  const countryCode = company?.country_code || 'BH';
+  const { data: ruleRows = [] } = useStatutoryRules(countryCode);
+  const { data: taxRules = [] } = useCountryTaxRules(countryCode);
+  return { countryCode, ruleRows, taxRules };
 }
 
 // Country-scoped payroll components (company override wins over platform template by code)

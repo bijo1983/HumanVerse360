@@ -4,6 +4,7 @@ import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
+  useStatutoryContext,
 } from '../../hooks/usePayroll';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
@@ -205,6 +206,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
+  const statutory = useStatutoryContext();
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -274,6 +276,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
           settings={settings}
           leaveMap={leaveMap}
           calcFormulas={calcFormulas}
+          statutory={statutory}
           month={month}
           year={year}
         />
@@ -291,6 +294,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: settings } = usePayrollSettings(companyId);
   const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
+  const statutory = useStatutoryContext();
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
@@ -384,6 +388,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
           employees={allEmployees}
           settings={settings}
           calcFormulas={calcFormulas}
+          statutory={statutory}
           month={run.month}
           year={run.year}
           existingItems={items}
