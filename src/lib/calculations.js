@@ -1,4 +1,5 @@
 import { differenceInDays, differenceInMonths, differenceInYears, parseISO, getDaysInMonth } from 'date-fns';
+import { safeEvaluate } from './formulaEngine';
 
 export function getServiceYears(joiningDate, endDate = new Date()) {
   const start = typeof joiningDate === 'string' ? parseISO(joiningDate) : joiningDate;
@@ -110,16 +111,12 @@ export function getDocumentStatusLabel(expiryDate) {
   return labels[status];
 }
 
+// Evaluates a payroll formula against the given variables.
+// Runs on the sandboxed AST interpreter (src/lib/formulaEngine.js) —
+// arbitrary JavaScript is no longer executed. Same contract as before:
+// numeric results rounded to 3 decimals, null on any error.
 export function evaluateFormula(formula, variables) {
-  try {
-    const keys = Object.keys(variables);
-    const vals = Object.values(variables);
-    const fn = new Function(...keys, `return ${formula}`);
-    const result = fn(...vals);
-    return typeof result === 'number' ? Math.round(result * 1000) / 1000 : result;
-  } catch {
-    return null;
-  }
+  return safeEvaluate(formula, variables);
 }
 
 // Legacy signature kept for existing call sites (defaults preserve the
