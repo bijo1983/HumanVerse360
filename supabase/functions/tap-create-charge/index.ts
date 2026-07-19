@@ -7,6 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+const TAP_API_BASE = "https://api.tap.company/v2/charges";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -15,9 +17,10 @@ Deno.serve(async (req: Request) => {
   try {
     const tapSecretKey = Deno.env.get("TAP_SECRET_KEY");
     const tapMerchantId = Deno.env.get("TAP_MERCHANT_ID");
+    const appBaseUrl = Deno.env.get("APP_BASE_URL") || "https://humanverse360.net";
+
     if (!tapSecretKey) throw new Error("TAP_SECRET_KEY is not configured");
 
-    // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
@@ -37,7 +40,7 @@ Deno.serve(async (req: Request) => {
     // Verify user belongs to this company
     const { data: cu, error: cuError } = await supabase
       .from("company_users")
-      .select("role, companies(name, email)")
+      .select("role, companies(name, email, phone)")
       .eq("user_id", user.id)
       .eq("company_id", company_id)
       .eq("is_active", true)
@@ -53,14 +56,18 @@ Deno.serve(async (req: Request) => {
     if (planError || !plan) throw new Error("Plan not found");
     if (!plan.price_bhd || plan.price_bhd <= 0) throw new Error("Free plans do not require payment");
 
-    const companyName = (cu.companies as { name?: string; email?: string })?.name || "Company";
-    const companyEmail = (cu.companies as { name?: string; email?: string })?.email || user.email || "";
+    const companyInfo = cu.companies as { name?: string; email?: string; phone?: string };
+    const companyName = companyInfo?.name || "Company";
+    const companyEmail = companyInfo?.email || user.email || "";
 
-    const redirectUrl = `https://humanverse360.net/subscription?tap_id={charge.id}`;
+    // BHD uses 3 decimal places per ISO 4217
+    const formattedAmount = Number(plan.price_bhd).toFixed(3);
+
+    const redirectUrl = `${appBaseUrl}/subscription`;
 
     // Create Tap charge — src_all shows all payment methods on Tap hosted page
     const chargeBody: Record<string, unknown> = {
-      amount: plan.price_bhd,
+      amount: formattedAmount,
       currency: "BHD",
       customer_initiated: true,
       threeDSecure: true,
@@ -82,18 +89,20 @@ Deno.serve(async (req: Request) => {
         email: companyEmail,
       },
       source: { id: "src_all" },
-      redirect: { url: "https://humanverse360.net/subscription" },
+      redirect: { url: redirectUrl },
+      post: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/tap-webhook` },
     };
 
     if (tapMerchantId) {
       chargeBody.merchant = { id: tapMerchantId };
     }
 
-    const tapRes = await fetch("https://api.tap.company/v2/charges", {
+    const tapRes = await fetch(TAP_API_BASE, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${tapSecretKey}`,
         "Content-Type": "application/json",
+        lang_code: "en",
       },
       body: JSON.stringify(chargeBody),
     });

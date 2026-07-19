@@ -7,6 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+const TAP_API_BASE = "https://api.tap.company/v2/charges";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -33,7 +35,7 @@ Deno.serve(async (req: Request) => {
     if (!charge_id) throw new Error("charge_id is required");
 
     // Retrieve charge from Tap
-    const tapRes = await fetch(`https://api.tap.company/v2/charges/${charge_id}`, {
+    const tapRes = await fetch(`${TAP_API_BASE}/${charge_id}`, {
       headers: { Authorization: `Bearer ${tapSecretKey}` },
     });
 
@@ -43,7 +45,7 @@ Deno.serve(async (req: Request) => {
       throw new Error(errMsg);
     }
 
-    const status = tapData.status; // INITIATED | CAPTURED | FAILED | CANCELLED | etc.
+    const status = tapData.status;
 
     // Find the transaction record in our DB
     const { data: txn } = await supabase
@@ -72,13 +74,19 @@ Deno.serve(async (req: Request) => {
 
     // If captured, activate the subscription
     if (status === "CAPTURED" && txn.plan_id) {
+      const now = new Date();
+      const nextBilling = new Date(now);
+      nextBilling.setMonth(nextBilling.getMonth() + 1);
+
       await supabase
         .from("companies")
         .update({
           subscription_plan_id: txn.plan_id,
           subscription_status: "active",
-          subscription_start: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          subscription_start: now.toISOString().split("T")[0],
+          next_billing_date: nextBilling.toISOString().split("T")[0],
+          last_payment_date: now.toISOString().split("T")[0],
+          updated_at: now.toISOString(),
         })
         .eq("id", txn.company_id);
     }
