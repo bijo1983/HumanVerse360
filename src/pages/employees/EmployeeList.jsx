@@ -9,10 +9,12 @@ import { SearchInput, Select } from '../../components/ui/Form';
 import { ConfirmModal, Modal } from '../../components/ui/Modal';
 import { formatDate, formatCurrency } from '../../lib/calculations';
 import { exportEmployeesToExcel, downloadEmployeeTemplate, parseEmployeeImport } from '../../lib/excelUtils';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
 import EmployeeForm from './EmployeeForm';
 
 export default function EmployeeList() {
   const { companyId, isWithinEmployeeLimit } = useAuth();
+  const { config } = useCountryConfig();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
@@ -73,7 +75,7 @@ export default function EmployeeList() {
               Employee limit reached — Upgrade
             </Link>
           )}
-          <button onClick={() => exportEmployeesToExcel(employees || [])} className="btn-secondary text-sm">
+          <button onClick={() => exportEmployeesToExcel(employees || [], { nationalIdLabel: config.identity.nationalIdLabel })} className="btn-secondary text-sm">
             <Download className="w-3.5 h-3.5" /> Export Excel
           </button>
           <button onClick={() => setShowImport(true)} className="btn-secondary text-sm">

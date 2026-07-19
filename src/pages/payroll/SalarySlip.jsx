@@ -1,19 +1,39 @@
 import { useRef } from 'react';
 import { Modal } from '../../components/ui/Modal';
-import { formatCurrency, formatDate } from '../../lib/calculations';
+import { formatCurrency } from '../../lib/calculations';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
+import { usePayslipTemplate } from '../../hooks/usePayroll';
 import { Printer } from 'lucide-react';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function maskValue(value, mask) {
+  if (!value) return null;
+  if (mask === 'last4') {
+    const s = String(value);
+    return s.length > 4 ? '•'.repeat(Math.max(0, s.length - 4)) + s.slice(-4) : s;
+  }
+  return value;
+}
 
 export default function SalarySlip({ employee, onClose }) {
   const { item, run } = employee;
   const emp = item?.employees;
   const { company } = useAuth();
+  const { config } = useCountryConfig();
+  const { data: template } = usePayslipTemplate(config.countryCode);
   const printRef = useRef();
 
   const companyName = company?.name || 'Company';
   const logoUrl = company?.logo_url || null;
+  const ccy = config.locale.currencyCode;
+  const money = v => formatCurrency(v, config.locale);
+  const layout = template?.layout || {};
+  const statutoryLabel = layout.statutoryDeductionLabel || 'GOSI (Employee)';
+  // Identity block from the country payslip template; national_id lives on employees.cpr_number
+  const idMask = (layout.identity || []).find(f => f.fieldKey === 'national_id')?.mask;
+  const nationalIdRow = [config.identity.nationalIdLabel, maskValue(emp?.cpr_number, idMask)];
 
   const handlePrint = () => {
     const content = printRef.current.innerHTML;
@@ -56,7 +76,7 @@ export default function SalarySlip({ employee, onClose }) {
   ].filter(i => i.amount > 0);
 
   const deductionBreakdown = [
-    { label: 'GOSI (Employee)', amount: item.gosi_employee },
+    { label: statutoryLabel, amount: item.gosi_employee },
     { label: 'Loan Deduction', amount: item.loan_deduction },
     { label: 'Other Deductions', amount: item.other_deductions },
   ].filter(i => i.amount > 0);
@@ -90,6 +110,7 @@ export default function SalarySlip({ employee, onClose }) {
             {[
               ['Employee Name', `${emp?.first_name} ${emp?.last_name}`],
               ['Employee ID', emp?.employee_id],
+              nationalIdRow,
               ['Department', emp?.department_name],
               ['Designation', emp?.position_title],
             ].map(([k, v]) => (
@@ -119,9 +140,9 @@ export default function SalarySlip({ employee, onClose }) {
           <thead>
             <tr className="bg-secondary-50">
               <th className="px-4 py-2 text-left border border-secondary-200 text-secondary-600">Earnings</th>
-              <th className="px-4 py-2 text-right border border-secondary-200 text-secondary-600">Amount (BHD)</th>
+              <th className="px-4 py-2 text-right border border-secondary-200 text-secondary-600">{`Amount (${ccy})`}</th>
               <th className="px-4 py-2 text-left border border-secondary-200 text-secondary-600">Deductions</th>
-              <th className="px-4 py-2 text-right border border-secondary-200 text-secondary-600">Amount (BHD)</th>
+              <th className="px-4 py-2 text-right border border-secondary-200 text-secondary-600">{`Amount (${ccy})`}</th>
             </tr>
           </thead>
           <tbody>
@@ -129,19 +150,19 @@ export default function SalarySlip({ employee, onClose }) {
               <tr key={i} className="border-b border-secondary-100">
                 <td className="px-4 py-2 border border-secondary-100">{grossBreakdown[i]?.label || ''}</td>
                 <td className="px-4 py-2 text-right border border-secondary-100 font-mono">
-                  {grossBreakdown[i] ? formatCurrency(grossBreakdown[i].amount) : ''}
+                  {grossBreakdown[i] ? money(grossBreakdown[i].amount) : ''}
                 </td>
                 <td className="px-4 py-2 border border-secondary-100 text-error-700">{deductionBreakdown[i]?.label || ''}</td>
                 <td className="px-4 py-2 text-right border border-secondary-100 font-mono text-error-700">
-                  {deductionBreakdown[i] ? formatCurrency(deductionBreakdown[i].amount) : ''}
+                  {deductionBreakdown[i] ? money(deductionBreakdown[i].amount) : ''}
                 </td>
               </tr>
             ))}
             <tr className="bg-secondary-50 font-semibold">
               <td className="px-4 py-2 border border-secondary-200">Total Earnings</td>
-              <td className="px-4 py-2 text-right border border-secondary-200 font-mono">{formatCurrency(item.gross_salary)}</td>
+              <td className="px-4 py-2 text-right border border-secondary-200 font-mono">{money(item.gross_salary)}</td>
               <td className="px-4 py-2 border border-secondary-200 text-error-700">Total Deductions</td>
-              <td className="px-4 py-2 text-right border border-secondary-200 font-mono text-error-700">{formatCurrency(item.total_deductions)}</td>
+              <td className="px-4 py-2 text-right border border-secondary-200 font-mono text-error-700">{money(item.total_deductions)}</td>
             </tr>
           </tbody>
         </table>
@@ -149,7 +170,7 @@ export default function SalarySlip({ employee, onClose }) {
         {/* Net Pay */}
         <div className="net-box bg-primary-900 text-white rounded-xl p-4 text-center">
           <p className="text-sm text-primary-200">Net Salary Payable</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(item.net_salary)}</p>
+          <p className="text-2xl font-bold mt-1">{money(item.net_salary)}</p>
           <p className="text-xs text-primary-300 mt-0.5">Bahraini Dinar</p>
         </div>
 

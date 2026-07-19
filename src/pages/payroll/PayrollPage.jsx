@@ -4,8 +4,9 @@ import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
-  useStatutoryContext,
+  useStatutoryContext, usePayslipTemplate,
 } from '../../hooks/usePayroll';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
 import { useAuth } from '../../contexts/AuthContext';
@@ -402,12 +403,20 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
 
 function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
   const { company } = useAuth();
+  const { config } = useCountryConfig();
+  const { data: payslipTemplate } = usePayslipTemplate(config.countryCode);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportPayrollToExcel(run, items, company?.name);
+      const statutoryLabel = payslipTemplate?.layout?.statutoryDeductionLabel;
+      await exportPayrollToExcel(run, items, company?.name, {
+        currencyCode: config.locale.currencyCode,
+        statutoryEeLabel: statutoryLabel,
+        statutoryErLabel: statutoryLabel ? statutoryLabel.replace('(Employee)', '(Employer)') : undefined,
+        nationalIdLabel: config.identity.nationalIdLabel,
+      });
     } finally {
       setExporting(false);
     }

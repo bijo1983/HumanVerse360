@@ -64,7 +64,7 @@ export function usePayrollLineItems(runId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('payroll_line_items')
-        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id)')
+        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id, cpr_number)')
         .eq('payroll_run_id', runId)
         .order('created_at');
       if (error) throw error;
@@ -329,6 +329,26 @@ export function useEosbRule(countryCode) {
       if (error) throw error;
       const rows = data || [];
       return rows.find(r => r.company_id) ?? rows.find(r => !r.company_id) ?? null;
+    },
+  });
+}
+
+// Payslip layout template for a country (company override > platform template)
+export function usePayslipTemplate(countryCode) {
+  const { company } = useAuth();
+  return useQuery({
+    queryKey: ['payslip-template', countryCode, company?.id],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payslip_templates')
+        .select('*')
+        .eq('country_code', countryCode)
+        .eq('is_active', true);
+      if (error) throw error;
+      const rows = data || [];
+      return rows.find(r => r.company_id === company?.id) ?? rows.find(r => !r.company_id) ?? null;
     },
   });
 }

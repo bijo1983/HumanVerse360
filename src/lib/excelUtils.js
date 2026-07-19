@@ -22,16 +22,21 @@ function loadXLSX() {
 
 // ── Payroll export ────────────────────────────────────────────────────────────
 
-export async function exportPayrollToExcel(run, items, companyName) {
+// countryCtx (optional): { currencyCode, statutoryEeLabel, statutoryErLabel, nationalIdLabel }
+// sourced from report_field_mappings / country config; defaults keep the legacy Bahrain output.
+export async function exportPayrollToExcel(run, items, companyName, countryCtx = {}) {
   const XLSX = await loadXLSX();
   const period = `${MONTHS[run.month - 1]} ${run.year}`;
   const safeCompany = companyName || 'Company';
+  const ccy = countryCtx.currencyCode || 'BHD';
+  const eeLabel = countryCtx.statutoryEeLabel || 'GOSI (Employee)';
+  const erLabel = countryCtx.statutoryErLabel || 'GOSI (Employer)';
 
   const headers = [
     'Employee ID', 'Employee Name', 'Nationality', 'Department', 'Position',
     'Basic Salary', 'Housing', 'Transport', 'Food', 'Other Allowances',
     'OT Hours', 'OT Amount', 'Bonus', 'Gross Salary',
-    'GOSI (Employee)', 'GOSI (Employer)',
+    eeLabel, erLabel,
     'Loan Deduction', 'Other Deductions', 'Total Deductions',
     'Net Salary', 'Working Days', 'Leave Days', 'Absent Days',
   ];
@@ -105,11 +110,11 @@ export async function exportPayrollToExcel(run, items, companyName) {
     [],
     ['Metric', 'Value'],
     ['Total Employees', items.length],
-    ['Total Gross (BHD)', totals.gross],
-    ['Total GOSI – Employee (BHD)', totals.gosiEmp],
-    ['Total GOSI – Employer (BHD)', totals.gosiEr],
-    ['Total Deductions (BHD)', totals.ded],
-    ['Total Net Pay (BHD)', totals.net],
+    [`Total Gross (${ccy})`, totals.gross],
+    [`Total ${eeLabel} (${ccy})`, totals.gosiEmp],
+    [`Total ${erLabel} (${ccy})`, totals.gosiEr],
+    [`Total Deductions (${ccy})`, totals.ded],
+    [`Total Net Pay (${ccy})`, totals.net],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
   wsSummary['!cols'] = [{ wch: 32 }, { wch: 18 }];
@@ -174,11 +179,23 @@ export const LEAVE_BALANCE_COLUMNS = [
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
-export async function exportEmployeesToExcel(employees) {
+// Returns EMPLOYEE_COLUMNS with the country's national ID label substituted
+export function employeeColumnsFor(countryCtx = {}) {
+  const idLabel = countryCtx.nationalIdLabel;
+  if (!idLabel) return EMPLOYEE_COLUMNS;
+  return EMPLOYEE_COLUMNS.map(c => {
+    if (c.key === 'cpr_number') return { ...c, label: idLabel };
+    if (c.key === 'cpr_expiry') return { ...c, label: `${idLabel} Expiry` };
+    return c;
+  });
+}
+
+export async function exportEmployeesToExcel(employees, countryCtx = {}) {
+  const COLS = employeeColumnsFor(countryCtx);
   const XLSX = await loadXLSX();
-  const headers = EMPLOYEE_COLUMNS.map(c => c.label);
+  const headers = COLS.map(c => c.label);
   const rows = employees.map(emp =>
-    EMPLOYEE_COLUMNS.map(c => {
+    COLS.map(c => {
       const v = emp[c.key];
       if (v === null || v === undefined) return '';
       if (typeof v === 'number') return v;
