@@ -42,7 +42,12 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
   const dw     = Number(row.days_worked) >= 0 ? Number(row.days_worked) : dim;
   const ld     = Number(row.leave_days) || 0;
   const absent = Math.max(0, dim - dw - ld);
-  const basicPro = dw < dim ? r3((basic / dim) * dw) : basic;
+  // Basic Salary always shows the full contracted amount; the monetary
+  // value of days not worked (unpaid leave, manual absence adjustment)
+  // is broken out as its own "Leave Ded." line instead of silently
+  // shrinking the Basic figure — same net pay, but auditable.
+  const basicPro = basic;
+  const leaveDeduction = dw < dim ? r3((basic / dim) * (dim - dw)) : 0;
   const housing   = Number(row.housing_allowance) || 0;
   const transport = Number(row.transport_allowance) || 0;
   const food      = Number(row.food_allowance) || 0;
@@ -105,7 +110,7 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
   }
   const loan      = Number(row.loan_deduction) || 0;
   const otherDed  = Number(row.other_deductions) || 0;
-  const totalDed  = r3(gosiEmp + loan + otherDed);
+  const totalDed  = r3(gosiEmp + loan + otherDed + leaveDeduction);
 
   // ── Formula-based LEAVE_PAY ─────────────────────────────────────────────────
   let leavePay = 0;
@@ -135,6 +140,7 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
     gross_salary: gross,
     gosi_employee: gosiEmp,
     gosi_employer: gosiEr,
+    leave_deduction: leaveDeduction,
     total_deductions: totalDed,
     net_salary: net,
     // Non-persisted metadata carried through for YTD posting at approval
@@ -193,6 +199,7 @@ function makeRowFromItem(item, dim) {
     bonus: item.bonus || 0,
     loan_deduction: item.loan_deduction || 0,
     other_deductions: item.other_deductions || 0,
+    leave_deduction: item.leave_deduction || 0,
     leave_days: item.leave_days || 0,
     days_worked: item.working_days != null ? item.working_days : dim,
     absent_days: item.absent_days || 0,
@@ -224,6 +231,7 @@ const COLS = [
   { key: 'gosi_employee', label: 'GOSI Emp', group: 'gosi', w: 90, editable: false },
   { key: 'gosi_employer', label: 'GOSI Er.', group: 'gosi', w: 90, editable: false },
   // Deductions
+  { key: 'leave_deduction', label: 'Leave Ded.', group: 'deductions', w: 90, editable: false },
   { key: 'loan_deduction', label: 'Loan Ded.', group: 'deductions', w: 90, editable: true },
   { key: 'other_deductions', label: 'Other Ded.', group: 'deductions', w: 90, editable: true },
   { key: 'total_deductions', label: 'Total Ded.', group: 'deductions', w: 96, editable: false, bold: true },
@@ -345,7 +353,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
               if (emp) {
                 setRows(prev => {
                   if (prev.find(r => r.employee_id === emp.id)) return prev;
-                  return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim, calcFormulas, statutory)];
+                  return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas, statutory)];
                 });
                 e.target.value = '';
               }

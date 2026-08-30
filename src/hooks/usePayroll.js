@@ -151,6 +151,7 @@ export function useCreatePayrollRunWithItems(companyId) {
         gross_salary: row.gross_salary || 0,
         gosi_employee: row.gosi_employee || 0,
         gosi_employer: row.gosi_employer || 0,
+        leave_deduction: row.leave_deduction || 0,
         loan_deduction: row.loan_deduction || 0,
         other_deductions: row.other_deductions || 0,
         total_deductions: row.total_deductions || 0,
@@ -208,6 +209,7 @@ export function useSaveDraftItems() {
           gross_salary: row.gross_salary || 0,
           gosi_employee: row.gosi_employee || 0,
           gosi_employer: row.gosi_employer || 0,
+          leave_deduction: row.leave_deduction || 0,
           loan_deduction: row.loan_deduction || 0,
           other_deductions: row.other_deductions || 0,
           total_deductions: row.total_deductions || 0,
@@ -242,7 +244,7 @@ export function useUpdatePayrollItem() {
   return useMutation({
     mutationFn: async ({ id, runId, ...updates }) => {
       const gross = (updates.basic_salary || 0) + (updates.housing_allowance || 0) + (updates.transport_allowance || 0) + (updates.food_allowance || 0) + (updates.other_allowances || 0) + (updates.overtime_amount || 0) + (updates.bonus || 0);
-      const total_ded = (updates.gosi_employee || 0) + (updates.loan_deduction || 0) + (updates.other_deductions || 0);
+      const total_ded = (updates.gosi_employee || 0) + (updates.loan_deduction || 0) + (updates.other_deductions || 0) + (updates.leave_deduction || 0);
       const { data, error } = await supabase
         .from('payroll_line_items')
         .update({ ...updates, gross_salary: gross, total_deductions: total_ded, net_salary: gross - total_ded, updated_at: new Date().toISOString() })
