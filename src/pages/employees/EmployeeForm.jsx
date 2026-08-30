@@ -9,7 +9,7 @@ import {
   useEmployeeWorkHistory, useCreateWorkHistory, useUpdateWorkHistory, useDeleteWorkHistory,
   useEmployeeDependents, useCreateDependent, useUpdateDependent, useDeleteDependent,
 } from '../../hooks/useEmployeeDetails';
-import { useCustomFields, useEmployeeCustomValues, useSaveCustomValues } from '../../hooks/useCustomFields';
+import { useCustomFields, useEmployeeCustomValues, useSaveCustomValues, useSensitiveFieldFlags, useRevealFieldValue } from '../../hooks/useCustomFields';
 import { useCountryConfig } from '../../hooks/useCountryConfig';
 import { useAddressFormat, useEmployeeAddress, useSaveEmployeeAddress, renderAddressLine } from '../../hooks/useAddressFormat';
 import AddressBlock from '../../components/employees/AddressBlock';
@@ -251,7 +251,8 @@ export default function EmployeeForm({ employee, onClose }) {
               fields={customFieldsBySection['Personal'] || []}
               allFields={visibleFields}
               values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
-              onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
+              onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))}
+              employeeId={isEdit ? employee.id : null} />
           </div>
         )}
         {tab === 'Statutory' && (
@@ -266,7 +267,8 @@ export default function EmployeeForm({ employee, onClose }) {
                     fields={customFieldsBySection[section] || []}
                     allFields={visibleFields}
                     values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
-                    onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
+                    onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))}
+                    employeeId={isEdit ? employee.id : null} />
                 </div>
               </div>
             ))}
@@ -349,7 +351,8 @@ export default function EmployeeForm({ employee, onClose }) {
               fields={customFieldsBySection['Documents'] || []}
               allFields={visibleFields}
               values={isEdit ? { ...customValues, ...customFieldValues } : customFieldValues}
-              onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))} />
+              onChange={(fieldId, val) => setCustomFieldValues(prev => ({ ...prev, [fieldId]: val }))}
+              employeeId={isEdit ? employee.id : null} />
           </div>
         )}
         {tab === 'Banking' && (
@@ -396,21 +399,77 @@ function isDependencySatisfied(field, allFields, values) {
 }
 
 // Renders dynamic custom fields for a given section
-function CustomFieldsSection({ fields, allFields, values, onChange }) {
+function CustomFieldsSection({ fields, allFields, values, onChange, employeeId }) {
   if (!fields || fields.length === 0) return null;
+  const sensitiveIds = fields.filter(f => f.is_sensitive).map(f => f.id);
+  const { data: sensitiveFlags = {} } = useSensitiveFieldFlags(sensitiveIds.length > 0 ? employeeId : null);
   return (
     <>
       {fields
         .filter(f => isDependencySatisfied(f, allFields ?? fields, values))
         .map(f => (
           <FormField key={f.id} label={f.field_label} required={f.is_required} hint={f.hint}>
-            <CustomFieldInput
-              field={f}
-              value={values[f.id] ?? ''}
-              onChange={val => onChange(f.id, val)} />
+            {f.is_sensitive ? (
+              <SensitiveFieldInput
+                field={f}
+                employeeId={employeeId}
+                hasStoredValue={!!sensitiveFlags[f.id]}
+                value={values[f.id] ?? ''}
+                onChange={val => onChange(f.id, val)} />
+            ) : (
+              <CustomFieldInput
+                field={f}
+                value={values[f.id] ?? ''}
+                onChange={val => onChange(f.id, val)} />
+            )}
           </FormField>
         ))}
     </>
+  );
+}
+
+// A field flagged is_sensitive (e.g. PAN) is encrypted at rest and its
+// plaintext is never included in the normal read — this renders a masked
+// placeholder with an explicit, permission-gated, audited "Reveal"
+// instead, or a plain input once the user starts typing a replacement.
+function SensitiveFieldInput({ field, employeeId, hasStoredValue, value, onChange }) {
+  const [revealed, setRevealed] = useState(null); // null = not revealed; string = decrypted value shown
+  const [editing, setEditing] = useState(false);
+  const reveal = useRevealFieldValue();
+
+  if (value || editing || !hasStoredValue) {
+    return (
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={field.placeholder || ''}
+        required={field.is_required}
+        pattern={field.validation_rule?.regex}
+        className="input" />
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input type="text" readOnly value={revealed ?? '••••••••••'} className="input bg-secondary-50 text-secondary-500 tracking-widest" />
+      {revealed === null ? (
+        <button type="button" disabled={reveal.isPending}
+          onClick={async () => {
+            try {
+              const val = await reveal.mutateAsync({ employeeId, fieldKey: field.field_key });
+              setRevealed(val || '(not set)');
+            } catch (e) { alert(e.message); }
+          }}
+          className="btn-secondary text-xs whitespace-nowrap">
+          {reveal.isPending ? 'Revealing…' : 'Reveal'}
+        </button>
+      ) : (
+        <button type="button" onClick={() => setEditing(true)} className="btn-secondary text-xs whitespace-nowrap">
+          Replace
+        </button>
+      )}
+    </div>
   );
 }
 

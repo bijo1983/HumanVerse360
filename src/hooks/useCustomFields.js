@@ -83,6 +83,40 @@ export function useBulkFieldValuesByKey(employeeIds, fieldKeys) {
   });
 }
 
+// Which sensitive custom fields have a stored (encrypted) value for this
+// employee — lets the UI show a masked placeholder + Reveal button
+// without ever fetching the plaintext until explicitly requested.
+export function useSensitiveFieldFlags(employeeId) {
+  return useQuery({
+    queryKey: ['sensitive-field-flags', employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employee_custom_values')
+        .select('custom_field_id, value_encrypted')
+        .eq('employee_id', employeeId)
+        .not('value_encrypted', 'is', null);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map(r => [r.custom_field_id, true]));
+    },
+  });
+}
+
+// Decrypts one sensitive field's value via the permission-gated, audited
+// get_employee_field_value() RPC (see migration 40) — never fetched in bulk.
+export function useRevealFieldValue() {
+  return useMutation({
+    mutationFn: async ({ employeeId, fieldKey }) => {
+      const { data, error } = await supabase.rpc('get_employee_field_value', {
+        p_employee_id: employeeId,
+        p_field_key: fieldKey,
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 // Save custom field values for an employee (upsert all)
 export function useSaveCustomValues(companyId) {
   const qc = useQueryClient();
