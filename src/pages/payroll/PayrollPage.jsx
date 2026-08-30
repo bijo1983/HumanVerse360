@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, FileDown, RefreshCw } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
-  useCreatePayrollRunWithItems, useSaveDraftItems,
+  useCreatePayrollRunWithItems, useSaveDraftItems, useExistingPayrollForPeriod,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
   useStatutoryContext, usePayslipTemplate, useModuleSettings, useStatutoryRules,
 } from '../../hooks/usePayroll';
@@ -231,24 +231,36 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
+  const { data: existingPeriod, isLoading: existingLoading } = useExistingPayrollForPeriod(companyId, month, year);
   const periodEnd = new Date(year, month, 0).toISOString().slice(0, 10); // last day of `month`
   const statutory = useStatutoryContext(periodEnd, allEmployees.map(e => e.id));
   const createRun = useCreatePayrollRunWithItems(companyId);
 
-  const employees = mode === 'bulk' ? allEmployees : [];
+  // Employees already processed for this period (in a run created earlier,
+  // individually or in a previous bulk pass) are left out here so a second
+  // bulk/individual run for the same month doesn't re-offer or duplicate
+  // them — creating merges the rest into that existing run automatically.
+  const alreadyProcessedIds = existingPeriod?.employeeIds || new Set();
+  const remainingEmployees = allEmployees.filter(e => !alreadyProcessedIds.has(e.id));
+  const employees = mode === 'bulk' ? remainingEmployees : [];
 
   const handleSave = async (saveAsDraft) => {
     const rows = gridRef.current?.getRows() ?? [];
     if (!rows.length) { alert('Add at least one employee before saving.'); return; }
     try {
       const ytdUpdates = saveAsDraft ? [] : buildYtdUpdates(rows, statutory, periodEnd);
-      await createRun.mutateAsync({ month, year, items: rows, saveAsDraft, companyId, ytdUpdates });
+      const result = await createRun.mutateAsync({ month, year, items: rows, saveAsDraft, companyId, ytdUpdates });
+      if (result?.skippedCount) {
+        alert(`${result.skippedCount} employee(s) already had payroll processed for this period and were skipped.`);
+      }
       onClose();
     } catch (e) { alert(e.message); }
   };
 
-  // Show spinner until leave data resolves so the grid initialises with correct leave days
-  if (leaveLoading) {
+  // Show spinner until leave data and the already-processed-employee check
+  // resolve, so the grid initialises once with the correct row set (it
+  // won't pick up a prop change after mount).
+  if (leaveLoading || existingLoading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
@@ -271,7 +283,12 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
             <h2 className="text-sm font-semibold text-secondary-900">
               New Payroll Run — {MONTHS[month - 1]} {year}
             </h2>
-            <p className="text-xs text-secondary-500">{mode === 'bulk' ? 'Bulk mode' : 'Individual mode'} · Edit values then save as draft or approve directly</p>
+            <p className="text-xs text-secondary-500">
+              {mode === 'bulk' ? 'Bulk mode' : 'Individual mode'} · Edit values then save as draft or approve directly
+              {alreadyProcessedIds.size > 0 && (
+                <span className="text-amber-600"> · {alreadyProcessedIds.size} employee(s) already processed this period are excluded automatically</span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -299,7 +316,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
         <PayrollBulkGrid
           ref={gridRef}
           employees={employees}
-          availableEmployees={allEmployees}
+          availableEmployees={remainingEmployees}
           settings={settings}
           leaveMap={leaveMap}
           calcFormulas={calcFormulas}

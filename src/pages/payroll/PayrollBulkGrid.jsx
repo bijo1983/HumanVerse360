@@ -177,6 +177,7 @@ function makeRowFromEmployee(emp, dim, leaveMap = {}, hasLeaveFormula = false) {
     other_deductions: 0,
     leave_days: leaveDays,
     days_worked: daysWorked,
+    included: true,
   };
 }
 
@@ -208,6 +209,7 @@ function makeRowFromItem(item, dim) {
     gosi_employer: item.gosi_employer || 0,
     total_deductions: item.total_deductions || 0,
     net_salary: item.net_salary || 0,
+    included: true,
   };
 }
 
@@ -293,7 +295,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
   }, [settings, dim]);
 
   useImperativeHandle(ref, () => ({
-    getRows: () => rows,
+    getRows: () => rows.filter(r => r.included !== false),
     addEmployee: (emp) => setRows(prev => {
       if (prev.find(r => r.employee_id === emp.id)) return prev;
       return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas, statutory)];
@@ -320,9 +322,19 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
     });
   };
 
+  const toggleIncluded = (idx) => setRows(prev => {
+    const copy = [...prev];
+    copy[idx] = { ...copy[idx], included: copy[idx].included === false };
+    return copy;
+  });
+
+  const includedRows = rows.filter(r => r.included !== false);
+  const allIncluded = rows.length > 0 && includedRows.length === rows.length;
+  const toggleAll = () => setRows(prev => prev.map(r => ({ ...r, included: !allIncluded })));
+
   const totals = useMemo(() => COLS.reduce((acc, col) => {
     const skip = ['days_in_month', 'days_worked', 'overtime_hours', 'leave_days'];
-    if (!skip.includes(col.key)) acc[col.key] = r3(rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0));
+    if (!skip.includes(col.key)) acc[col.key] = r3(includedRows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0));
     return acc;
   }, {}), [rows]);
 
@@ -335,7 +347,10 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       <div className="flex flex-wrap gap-4 px-1 text-sm">
         <span className="text-secondary-500">
           <strong className="text-secondary-800">{MONTHS[month - 1]} {year}</strong>
-          {' · '}{rows.length} employees{' · '}{dim} days
+          {' · '}{includedRows.length < rows.length
+            ? `${includedRows.length} of ${rows.length} employees selected`
+            : `${rows.length} employees`}
+          {' · '}{dim} days
         </span>
         <span className="text-green-700 font-mono font-semibold">Gross: {Number(totals.gross_salary || 0).toFixed(3)}</span>
         <span className="text-red-600 font-mono">Deductions: {Number(totals.total_deductions || 0).toFixed(3)}</span>
@@ -374,7 +389,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
           <thead className="sticky top-0 z-20">
             {/* Group header row */}
             <tr>
-              <th className="sticky left-0 z-30 bg-secondary-200 border border-secondary-300 px-3 py-1.5 text-left text-secondary-500 font-semibold" colSpan={2}></th>
+              <th className="sticky left-0 z-30 bg-secondary-200 border border-secondary-300 px-3 py-1.5 text-left text-secondary-500 font-semibold" colSpan={readOnly ? 2 : 3}></th>
               {GROUP_SPANS.map(({ group, span }) => {
                 const meta = GROUP_META[group];
                 return (
@@ -386,7 +401,12 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
             </tr>
             {/* Column header row */}
             <tr>
-              <th className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-left text-secondary-600 font-semibold whitespace-nowrap" style={{ minWidth: 180 }}>Employee</th>
+              {!readOnly && (
+                <th className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-2 py-1.5 text-center" style={{ minWidth: 36 }}>
+                  <input type="checkbox" checked={allIncluded} onChange={toggleAll} title="Select / deselect all" />
+                </th>
+              )}
+              <th className="sticky z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-left text-secondary-600 font-semibold whitespace-nowrap" style={{ minWidth: 180, left: readOnly ? 0 : 36 }}>Employee</th>
               <th className="bg-secondary-100 border border-secondary-200 px-2 py-1.5 text-center text-secondary-500 font-medium whitespace-nowrap" style={{ minWidth: 55 }}>Nat.</th>
               {COLS.map(col => {
                 const meta = GROUP_META[col.group];
@@ -401,9 +421,20 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
 
           <tbody>
             {rows.map((row, i) => (
-              <tr key={row.employee_id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-secondary-50/40'} hover:bg-primary-50/20 transition-colors`}>
+              <tr key={row.employee_id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-secondary-50/40'} hover:bg-primary-50/20 transition-colors ${row.included === false ? 'opacity-40' : ''}`}>
+                {/* Include/exclude toggle */}
+                {!readOnly && (
+                  <td className="sticky left-0 z-10 bg-inherit border border-secondary-200 px-2 py-1 text-center">
+                    <input
+                      type="checkbox"
+                      checked={row.included !== false}
+                      onChange={() => toggleIncluded(i)}
+                      title="Include this employee in the save"
+                    />
+                  </td>
+                )}
                 {/* Sticky employee name */}
-                <td className="sticky left-0 z-10 bg-inherit border border-secondary-200 px-3 py-1 whitespace-nowrap">
+                <td className="sticky z-10 bg-inherit border border-secondary-200 px-3 py-1 whitespace-nowrap" style={{ left: readOnly ? 0 : 36 }}>
                   <p className="font-medium text-secondary-800 text-xs">{row.first_name} {row.last_name}</p>
                   <p className="text-[10px] text-secondary-400">{row.employee_number}</p>
                 </td>
@@ -439,7 +470,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={COLS.length + 2} className="py-12 text-center text-secondary-400 text-sm">
+                <td colSpan={COLS.length + (readOnly ? 2 : 3)} className="py-12 text-center text-secondary-400 text-sm">
                   No employees in this run. Use the dropdown above to add employees.
                 </td>
               </tr>
@@ -450,8 +481,8 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
           {rows.length > 0 && (
             <tfoot className="sticky bottom-0 z-20">
               <tr className="bg-secondary-100 font-bold">
-                <td className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-secondary-700 text-xs whitespace-nowrap" colSpan={2}>
-                  Totals ({rows.length} emp.)
+                <td className="sticky left-0 z-30 bg-secondary-100 border border-secondary-200 px-3 py-1.5 text-secondary-700 text-xs whitespace-nowrap" colSpan={readOnly ? 2 : 3}>
+                  Totals ({includedRows.length} emp.)
                 </td>
                 {COLS.map(col => {
                   const meta = GROUP_META[col.group];
