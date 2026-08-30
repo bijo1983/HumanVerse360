@@ -111,27 +111,69 @@ function indiaTDS(ctx) {
   const rule = pickTaxRule(ctx.taxRules, 'IN_TDS', { regime: ctx.taxRegime || 'new' });
   if (!rule) return { employee: 0, employer: 0 };
   const extras = rule.extras || {};
-  const annual = Math.max(0, num(ctx.monthlyTaxable) * 12 - num(extras.standard_deduction));
-  let tax = slabTax(annual, rule.tax_slabs || []);
-  if (extras.rebate_87a_limit && annual <= num(extras.rebate_87a_limit)) tax = 0;
-  tax *= 1 + num(extras.cess_pct) / 100;
-  return { employee: tax / 12, employer: 0 };
+  const ytd = ctx.ytd;
+
+  const taxAt = annual => {
+    let tax = slabTax(Math.max(0, annual - num(extras.standard_deduction)), rule.tax_slabs || []);
+    if (extras.rebate_87a_limit && annual - num(extras.standard_deduction) <= num(extras.rebate_87a_limit)) tax = 0;
+    return tax * (1 + num(extras.cess_pct) / 100);
+  };
+
+  if (ytd && ctx.monthsRemaining) {
+    // Sec 192 true-up: project the full-year taxable income from what's
+    // been earned so far plus this-and-future periods at the current rate,
+    // then spread (projected annual tax − tax already deducted) over the
+    // remaining periods including this one.
+    const projectedAnnual = num(ytd.taxableToDate) + num(ctx.monthlyTaxable) * ctx.monthsRemaining;
+    const annualTax = taxAt(projectedAnnual);
+    const dueThisAndRemaining = Math.max(0, annualTax - num(ytd.tdsToDate));
+    return { employee: dueThisAndRemaining / ctx.monthsRemaining, employer: 0 };
+  }
+
+  // No run/YTD context available (e.g. a standalone preview) — flat annualization
+  const annualTax = taxAt(num(ctx.monthlyTaxable) * 12);
+  return { employee: annualTax / 12, employer: 0 };
 }
 
 // ---------- United Kingdom ----------
+
+function ukPersonalAllowance(taxCode, extras, annualEquivalent) {
+  let allowance = num(extras.personal_allowance, 12570);
+  const codeMatch = /^([1-9][0-9]{0,3})[LMNPTY]/.exec(taxCode || '');
+  if (codeMatch) allowance = Number(codeMatch[1]) * 10;
+  if (/^BR/i.test(taxCode || '')) allowance = 0;
+  const taperFrom = num(extras.allowance_taper_from, 100000);
+  if (annualEquivalent > taperFrom) allowance = Math.max(0, allowance - (annualEquivalent - taperFrom) / 2);
+  return allowance;
+}
 
 function ukPAYE(ctx) {
   const rule = pickTaxRule(ctx.taxRules, 'GB_PAYE');
   if (!rule) return { employee: 0, employer: 0 };
   const extras = rule.extras || {};
+  const ytd = ctx.ytd;
+
+  if (ytd && ctx.monthsElapsed) {
+    // HMRC cumulative basis: tax is due on total pay to date (this period
+    // included) less the proportion of the annual free-pay allowance
+    // earned to date, minus whatever PAYE was already deducted this tax
+    // year. Non-cumulative codes (W1/M1, or an emergency-basis code) reset
+    // to a per-period allowance instead of accruing it.
+    const cumulativePay = num(ytd.grossToDate) + num(ctx.gross);
+    const isNonCumulative = /(W1|M1|X)$/i.test(ctx.taxCode || '');
+    const allowance = ukPersonalAllowance(ctx.taxCode, extras, cumulativePay * (12 / ctx.monthsElapsed));
+    const cumulativeAllowance = isNonCumulative
+      ? (allowance / 12) * 1
+      : (allowance / 12) * ctx.monthsElapsed;
+    const payForTax = isNonCumulative ? num(ctx.gross) : cumulativePay;
+    const taxToDate = slabTax(Math.max(0, payForTax - cumulativeAllowance), rule.tax_slabs || []);
+    const dueThisPeriod = isNonCumulative ? taxToDate : Math.max(0, taxToDate - num(ytd.payeToDate));
+    return { employee: dueThisPeriod, employer: 0 };
+  }
+
+  // No run/YTD context available — flat annualization approximation
   const annual = num(ctx.monthlyTaxable) * 12;
-  // Personal allowance from tax code when present (e.g. 1257L → 12570), else rule default
-  let allowance = num(extras.personal_allowance, 12570);
-  const codeMatch = /^([1-9][0-9]{0,3})[LMNPTY]/.exec(ctx.taxCode || '');
-  if (codeMatch) allowance = Number(codeMatch[1]) * 10;
-  if (/^BR/i.test(ctx.taxCode || '')) allowance = 0;
-  const taperFrom = num(extras.allowance_taper_from, 100000);
-  if (annual > taperFrom) allowance = Math.max(0, allowance - (annual - taperFrom) / 2);
+  const allowance = ukPersonalAllowance(ctx.taxCode, extras, annual);
   const tax = slabTax(Math.max(0, annual - allowance), rule.tax_slabs || []);
   return { employee: tax / 12, employer: 0 };
 }
@@ -196,15 +238,32 @@ function usStateTax(ctx) {
 
 function usFICA(ctx, rules) {
   const gross = num(ctx.gross);
-  // Monthly-average wage base handling (correct annual total for level pay)
-  const ssBase = Math.min(gross, rules.num('ss_wage_base_limit', { fallback: Infinity }) / 12 || Infinity);
-  const ss = ssBase * rules.num('ss_rate_pct');
+  const ssWageBaseLimit = rules.num('ss_wage_base_limit', { fallback: Infinity }) || Infinity;
   const addlThreshold = rules.num('medicare_additional_threshold', { fallback: Infinity }) || Infinity;
-  const medicareEE =
-    gross * rules.num('medicare_rate_pct') +
-    Math.max(0, gross - addlThreshold / 12) * rules.num('medicare_additional_pct');
+  const ytd = ctx.ytd;
+
+  let ssBase, medicareAddlBase;
+  if (ytd) {
+    // Actual year-to-date wages: SS stops the instant the real cumulative
+    // wage base is hit (correct even for uneven pay/bonuses), and the
+    // 0.9% additional Medicare surcharge applies only once cumulative
+    // wages actually cross the threshold this period.
+    const ssWagesToDate = num(ytd.ssWagesToDate);
+    ssBase = Math.max(0, Math.min(gross, ssWageBaseLimit - ssWagesToDate));
+    const medicareWagesToDate = num(ytd.medicareWagesToDate);
+    medicareAddlBase = Math.max(0, medicareWagesToDate + gross - addlThreshold) - Math.max(0, medicareWagesToDate - addlThreshold);
+  } else {
+    // No run/YTD context — monthly-average approximation (correct annual total for level pay)
+    ssBase = Math.min(gross, ssWageBaseLimit / 12 || Infinity);
+    medicareAddlBase = Math.max(0, gross - addlThreshold / 12);
+  }
+
+  const ss = ssBase * rules.num('ss_rate_pct');
+  const medicareEE = gross * rules.num('medicare_rate_pct') + medicareAddlBase * rules.num('medicare_additional_pct');
   const medicareER = gross * rules.num('medicare_rate_pct');
-  return { employee: ss + medicareEE, employer: ss + medicareER };
+  // ssWages: the actual SS-taxable wage this period (post wage-base cap) —
+  // exposed so the caller can accumulate it into next period's YTD balance.
+  return { employee: ss + medicareEE, employer: ss + medicareER, meta: { ssWages: ssBase } };
 }
 
 function usFUTA(ctx, rules) {
@@ -240,16 +299,23 @@ function subset(rows, moduleCode) {
 // ctx: { countryCode, nationality, nationalityClass, socialBase, gross,
 //        monthlyTaxable, ruleRows, taxRules, ptState, taxRegime, taxCode,
 //        pensionPct, studentLoanPlan, filingStatus, taxState,
-//        w4Dependents, w4ExtraWithholding, sutaRate }
+//        w4Dependents, w4ExtraWithholding, sutaRate,
+//        monthsElapsed, monthsRemaining,   // from resolveTaxYear() — optional
+//        ytd: {                            // optional; omit for standalone previews
+//          grossToDate, taxableToDate, tdsToDate, payeToDate,
+//          ssWagesToDate, medicareWagesToDate,
+//        } }
 // Returns { employee, employer, breakdown: [{code, name, employee, employer}] }
 export function computeStatutory(ctx) {
   const rows = ctx.ruleRows || [];
   const country = ctx.countryCode;
   const items = [];
+  const wageBases = {};
   const add = (code, name, res) => {
     if (!res) return;
     const employee = Math.max(0, num(res.employee));
     const employer = Math.max(0, num(res.employer));
+    if (res.meta) Object.assign(wageBases, res.meta);
     if (employee || employer) items.push({ code, name, employee, employer });
   };
 
@@ -282,5 +348,9 @@ export function computeStatutory(ctx) {
     employee: round(items.reduce((a, i) => a + i.employee, 0)),
     employer: round(items.reduce((a, i) => a + i.employer, 0)),
     breakdown: items.map(i => ({ ...i, employee: round(i.employee), employer: round(i.employer) })),
+    // Derived wage bases the caller should roll into next period's YTD
+    // balance (e.g. { ssWages } for US — the actual SS-taxable wage this
+    // period, which differs from gross once the annual cap is hit).
+    wageBases,
   };
 }

@@ -1,6 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { resolveTaxYear } from '../lib/taxYear';
+
+// Posts a batch of YTD deltas via the increment_ytd_balance RPC. Shared by
+// useCreatePayrollRunWithItems (run created already-approved) and
+// useApprovePayrollRun (draft promoted to approved) so a run's amounts are
+// rolled into next period's cumulative totals exactly once.
+async function postYtdUpdates(companyId, ytdUpdates = []) {
+  for (const u of ytdUpdates) {
+    for (const [componentCode, delta] of Object.entries(u.deltas || {})) {
+      if (!delta) continue;
+      const { error } = await supabase.rpc('increment_ytd_balance', {
+        p_company_id: companyId,
+        p_employee_id: u.employeeId,
+        p_country_code: u.countryCode,
+        p_tax_year: u.taxYear,
+        p_component_code: componentCode,
+        p_delta: delta,
+        p_period_end: u.periodEnd,
+      });
+      if (error) throw error;
+    }
+  }
+}
 
 const DEFAULT_SETTINGS = {
   bahraini_employee_gosi_pct: 8,
@@ -78,7 +101,7 @@ export function usePayrollLineItems(runId) {
 export function useCreatePayrollRunWithItems(companyId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ month, year, items, saveAsDraft = true }) => {
+    mutationFn: async ({ month, year, items, saveAsDraft = true, ytdUpdates = [] }) => {
       const { data: existing } = await supabase
         .from('payroll_runs')
         .select('id')
@@ -137,9 +160,16 @@ export function useCreatePayrollRunWithItems(companyId) {
         total_net: totals.net,
       }).eq('id', run.id);
 
+      // Only post YTD balances when the run is created already-approved —
+      // a draft can still be edited, and re-editing must not double-count.
+      if (!saveAsDraft) await postYtdUpdates(companyId, ytdUpdates);
+
       return run;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] });
+      qc.invalidateQueries({ queryKey: ['ytd-balances'] });
+    },
   });
 }
 
@@ -215,7 +245,11 @@ export function useUpdatePayrollItem() {
 export function useApprovePayrollRun() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, approvedBy }) => {
+    // ytdUpdates (optional): [{ employeeId, countryCode, taxYear, periodEnd,
+    //   deltas: { GROSS: 3000, PAYE: 390.5, SS_WAGES: 3000, TDS: ... } }]
+    // Rolls this period's amounts into next period's cumulative YTD balance —
+    // only done on approval (a draft can be re-edited without double counting).
+    mutationFn: async ({ id, approvedBy, companyId, ytdUpdates = [] }) => {
       const { error } = await supabase.from('payroll_runs').update({
         status: 'Approved',
         approved_by: approvedBy,
@@ -224,8 +258,38 @@ export function useApprovePayrollRun() {
       }).eq('id', id);
       if (error) throw error;
       await supabase.from('payroll_line_items').update({ status: 'Approved' }).eq('payroll_run_id', id);
+
+      await postYtdUpdates(companyId, ytdUpdates);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['ytd-balances'] });
+    },
+  });
+}
+
+// Cumulative YTD balances for every employee in a company for a tax year,
+// keyed by employee then component code — e.g. balances[empId].GROSS.
+// Used to feed the "before this period" totals into the statutory engine
+// (GB cumulative PAYE, US SS wage-base capping, India TDS true-up).
+export function useYtdBalances(companyId, taxYear) {
+  return useQuery({
+    queryKey: ['ytd-balances', companyId, taxYear],
+    enabled: !!companyId && !!taxYear,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payroll_ytd_balances')
+        .select('employee_id, component_code, cumulative_amount')
+        .eq('company_id', companyId)
+        .eq('tax_year', taxYear);
+      if (error) throw error;
+      const byEmployee = {};
+      for (const row of data || []) {
+        byEmployee[row.employee_id] = byEmployee[row.employee_id] || {};
+        byEmployee[row.employee_id][row.component_code] = Number(row.cumulative_amount) || 0;
+      }
+      return byEmployee;
+    },
   });
 }
 
@@ -302,13 +366,29 @@ export function useCountryTaxRules(countryCode) {
 }
 
 // Ready-to-use statutory context for the current company's country,
-// consumed by the payroll grid / computeStatutory().
-export function useStatutoryContext() {
+// consumed by the payroll grid / computeStatutory(). Pass the payroll
+// period's end date to also resolve the tax year and pull each
+// employee's YTD balances (needed for GB cumulative PAYE, US FICA wage
+// base capping, and India TDS true-up) — omit it for a country/date-
+// agnostic context (e.g. simple monthly-average approximations still apply).
+export function useStatutoryContext(periodEndDate) {
   const { company } = useAuth();
   const countryCode = company?.country_code || 'BH';
   const { data: ruleRows = [] } = useStatutoryRules(countryCode);
   const { data: taxRules = [] } = useCountryTaxRules(countryCode);
-  return { countryCode, ruleRows, taxRules };
+
+  const taxYearInfo = periodEndDate ? resolveTaxYear(countryCode, periodEndDate) : null;
+  const { data: ytdBalances = {} } = useYtdBalances(company?.id, taxYearInfo?.label);
+
+  return {
+    countryCode,
+    ruleRows,
+    taxRules,
+    ytdBalances,
+    taxYear: taxYearInfo?.label,
+    monthsElapsed: taxYearInfo?.monthsElapsed,
+    monthsRemaining: taxYearInfo?.monthsRemaining,
+  };
 }
 
 // Active EOSB/gratuity rule for a country (company override > platform template)

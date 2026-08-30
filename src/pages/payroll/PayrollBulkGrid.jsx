@@ -59,8 +59,12 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
   // - Other countries run the country statutory engine (GOSI/GPSSA/PASI/
   //   PIFSS/PF/ESI/PT/TDS/PAYE/NI/pension/FICA/state taxes) with rates
   //   from country_statutory_rules and tax_rules.
-  let gosiEmp, gosiEr;
+  let gosiEmp, gosiEr, statutoryBreakdown = null, statutoryWageBases = {};
   if (statutory && statutory.countryCode && statutory.countryCode !== 'BH') {
+    // YTD balances (cumulative amounts *before* this period) let GB PAYE run
+    // its real cumulative method and US FICA cap the SS wage base against
+    // actual year-to-date wages instead of a monthly average.
+    const empYtd = statutory.ytdBalances?.[row.employee_id];
     const res = computeStatutory({
       countryCode: statutory.countryCode,
       nationality: row.nationality,
@@ -69,9 +73,25 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
       monthlyTaxable: gross,
       ruleRows: statutory.ruleRows || [],
       taxRules: statutory.taxRules || [],
+      // Employee-specific tax profile fields (tax code, filing status, W-4
+      // details, PT state...) are not yet carried on the payroll row — see
+      // the country field values on the employee record for now. Country-
+      // level defaults apply until Phase 9c wires per-employee overrides in.
+      monthsElapsed: statutory.monthsElapsed,
+      monthsRemaining: statutory.monthsRemaining,
+      ytd: empYtd ? {
+        grossToDate: empYtd.GROSS || 0,
+        taxableToDate: empYtd.GROSS || 0,
+        tdsToDate: empYtd.TDS || 0,
+        payeToDate: empYtd.PAYE || 0,
+        ssWagesToDate: empYtd.SS_WAGES || 0,
+        medicareWagesToDate: empYtd.GROSS || 0,
+      } : undefined,
     });
     gosiEmp = r3(res.employee);
     gosiEr  = r3(res.employer);
+    statutoryBreakdown = res.breakdown;
+    statutoryWageBases = res.wageBases || {};
   } else {
     const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
     const pct = (val, def) => (val != null && val !== '' ? Number(val) : def) / 100;
@@ -114,6 +134,10 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
     gosi_employer: gosiEr,
     total_deductions: totalDed,
     net_salary: net,
+    // Non-persisted metadata carried through for YTD posting at approval
+    // time (see PayrollPage.jsx buildYtdUpdates) — not a payroll_line_items column.
+    _statutoryBreakdown: statutoryBreakdown,
+    _statutoryWageBases: statutoryWageBases,
   };
 }
 

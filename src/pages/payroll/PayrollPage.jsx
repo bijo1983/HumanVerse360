@@ -21,6 +21,28 @@ import SalarySlip from './SalarySlip';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// Rolls each row's period amounts into the employee's YTD balance — only
+// meaningful for countries running the statutory engine with YTD context
+// (GB/IN/US); Bahrain's legacy GOSI path doesn't track YTD.
+function buildYtdUpdates(rows, statutory, periodEnd) {
+  if (!statutory?.taxYear || !statutory.countryCode || statutory.countryCode === 'BH') return [];
+  return rows.map(row => {
+    const breakdown = row._statutoryBreakdown || [];
+    const findAmt = code => breakdown.find(b => b.code === code)?.employee;
+    const deltas = { GROSS: row.gross_salary || 0 };
+    const paye = findAmt('PAYE'); if (paye) deltas.PAYE = paye;
+    const tds = findAmt('TDS'); if (tds) deltas.TDS = tds;
+    const ssWages = row._statutoryWageBases?.ssWages; if (ssWages) deltas.SS_WAGES = ssWages;
+    return {
+      employeeId: row.employee_id,
+      countryCode: statutory.countryCode,
+      taxYear: statutory.taxYear,
+      periodEnd,
+      deltas,
+    };
+  });
+}
+
 export default function PayrollPage() {
   const { companyId, canDeletePayroll } = useAuth();
   const [showNew, setShowNew] = useState(false);
@@ -207,7 +229,8 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
-  const statutory = useStatutoryContext();
+  const periodEnd = new Date(year, month, 0).toISOString().slice(0, 10); // last day of `month`
+  const statutory = useStatutoryContext(periodEnd);
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -216,7 +239,8 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
     const rows = gridRef.current?.getRows() ?? [];
     if (!rows.length) { alert('Add at least one employee before saving.'); return; }
     try {
-      await createRun.mutateAsync({ month, year, items: rows, saveAsDraft });
+      const ytdUpdates = saveAsDraft ? [] : buildYtdUpdates(rows, statutory, periodEnd);
+      await createRun.mutateAsync({ month, year, items: rows, saveAsDraft, companyId, ytdUpdates });
       onClose();
     } catch (e) { alert(e.message); }
   };
@@ -295,7 +319,8 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: settings } = usePayrollSettings(companyId);
   const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
-  const statutory = useStatutoryContext();
+  const periodEnd = new Date(run.year, run.month, 0).toISOString().slice(0, 10);
+  const statutory = useStatutoryContext(periodEnd);
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
@@ -310,14 +335,15 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   };
 
   const handleApprove = async () => {
+    const rows = gridRef.current?.getRows() ?? [];
     if (isDraft) {
-      const rows = gridRef.current?.getRows() ?? [];
       try {
         await saveDraft.mutateAsync({ runId: run.id, companyId, items: rows });
       } catch (e) { alert(e.message); return; }
     }
     try {
-      await approveRun.mutateAsync({ id: run.id, approvedBy: user?.email || 'HR Manager' });
+      const ytdUpdates = buildYtdUpdates(rows, statutory, periodEnd);
+      await approveRun.mutateAsync({ id: run.id, approvedBy: user?.email || 'HR Manager', companyId, ytdUpdates });
       onClose();
     } catch (e) { alert(e.message); }
   };
