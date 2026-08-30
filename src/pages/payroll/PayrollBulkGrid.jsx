@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { getDaysInMonth } from 'date-fns';
 import { evaluateFormula } from '../../lib/calculations';
+import { computeStatutory } from '../../lib/statutory';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -34,11 +35,7 @@ function buildFormulaContext(row, settings, dim, gosiEmp, gosiEr, otAmt, basicPr
   };
 }
 
-function recompute(row, settings, dim, calcFormulas = {}) {
-  const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
-  const pct = (val, def) => (val != null && val !== '' ? Number(val) : def) / 100;
-  const empPct = isBahraini ? pct(settings?.bahraini_employee_gosi_pct, 8) : pct(settings?.expat_employee_gosi_pct, 1);
-  const erPct  = isBahraini ? pct(settings?.bahraini_employer_gosi_pct, 13) : pct(settings?.expat_employer_gosi_pct, 3);
+function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
   const otRate = settings?.ot_rate_normal != null ? Number(settings.ot_rate_normal) : 1.25;
 
   const basic  = Number(row.basic_salary) || 0;
@@ -55,8 +52,57 @@ function recompute(row, settings, dim, calcFormulas = {}) {
   const otAmt     = r3(hourly * otH * otRate);
   const bonus     = Number(row.bonus) || 0;
   const gross     = r3(basicPro + housing + transport + food + other + otAmt + bonus);
-  const gosiEmp   = r3(basic * empPct);
-  const gosiEr    = r3(basic * erPct);
+
+  // Statutory deductions/contributions:
+  // - Bahrain (or no statutory context) keeps the legacy payroll_settings
+  //   GOSI path so existing tenants see identical numbers.
+  // - Other countries run the country statutory engine (GOSI/GPSSA/PASI/
+  //   PIFSS/PF/ESI/PT/TDS/PAYE/NI/pension/FICA/state taxes) with rates
+  //   from country_statutory_rules and tax_rules.
+  let gosiEmp, gosiEr, statutoryBreakdown = null, statutoryWageBases = {};
+  if (statutory && statutory.countryCode && statutory.countryCode !== 'BH') {
+    // YTD balances (cumulative amounts *before* this period) let GB PAYE run
+    // its real cumulative method and US FICA cap the SS wage base against
+    // actual year-to-date wages instead of a monthly average.
+    const empYtd = statutory.ytdBalances?.[row.employee_id];
+    // Per-employee tax profile (tax code, W-4 details, PT state, tax
+    // regime, nationality class...) collected on the employee record —
+    // see TAX_PROFILE_FIELDS in usePayroll.js. Falls back to country-level
+    // defaults inside each calculator when an employee hasn't filled a
+    // field in yet (e.g. a brand new GB tax code defaults to 1257L).
+    const taxProfile = statutory.taxProfiles?.[row.employee_id] || {};
+    const res = computeStatutory({
+      countryCode: statutory.countryCode,
+      nationality: row.nationality,
+      socialBase: basic,
+      gross,
+      monthlyTaxable: gross,
+      ruleRows: statutory.ruleRows || [],
+      taxRules: statutory.taxRules || [],
+      ...taxProfile,
+      monthsElapsed: statutory.monthsElapsed,
+      monthsRemaining: statutory.monthsRemaining,
+      ytd: empYtd ? {
+        grossToDate: empYtd.GROSS || 0,
+        taxableToDate: empYtd.GROSS || 0,
+        tdsToDate: empYtd.TDS || 0,
+        payeToDate: empYtd.PAYE || 0,
+        ssWagesToDate: empYtd.SS_WAGES || 0,
+        medicareWagesToDate: empYtd.GROSS || 0,
+      } : undefined,
+    });
+    gosiEmp = r3(res.employee);
+    gosiEr  = r3(res.employer);
+    statutoryBreakdown = res.breakdown;
+    statutoryWageBases = res.wageBases || {};
+  } else {
+    const isBahraini = (row.nationality || '').toLowerCase() === 'bahraini';
+    const pct = (val, def) => (val != null && val !== '' ? Number(val) : def) / 100;
+    const empPct = isBahraini ? pct(settings?.bahraini_employee_gosi_pct, 8) : pct(settings?.expat_employee_gosi_pct, 1);
+    const erPct  = isBahraini ? pct(settings?.bahraini_employer_gosi_pct, 13) : pct(settings?.expat_employer_gosi_pct, 3);
+    gosiEmp = r3(basic * empPct);
+    gosiEr  = r3(basic * erPct);
+  }
   const loan      = Number(row.loan_deduction) || 0;
   const otherDed  = Number(row.other_deductions) || 0;
   const totalDed  = r3(gosiEmp + loan + otherDed);
@@ -91,6 +137,10 @@ function recompute(row, settings, dim, calcFormulas = {}) {
     gosi_employer: gosiEr,
     total_deductions: totalDed,
     net_salary: net,
+    // Non-persisted metadata carried through for YTD posting at approval
+    // time (see PayrollPage.jsx buildYtdUpdates) — not a payroll_line_items column.
+    _statutoryBreakdown: statutoryBreakdown,
+    _statutoryWageBases: statutoryWageBases,
   };
 }
 
@@ -209,13 +259,13 @@ function fmtNum(v, col) {
   return v != null && !isNaN(v) ? Number(v).toFixed(3) : '–';
 }
 
-const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, leaveMap = {}, calcFormulas = {}, month, year, existingItems, readOnly = false }, ref) {
+const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], availableEmployees, settings = {}, leaveMap = {}, calcFormulas = {}, statutory = null, month, year, existingItems, readOnly = false }, ref) {
   const dim = getDaysInMonth(new Date(year, month - 1, 1));
   const hasLeaveFormula = !!calcFormulas['LEAVE_PAY'];
 
   const [rows, setRows] = useState(() => {
-    if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim, calcFormulas));
-    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas));
+    if (existingItems?.length) return existingItems.map(item => recompute(makeRowFromItem(item, dim), settings, dim, calcFormulas, statutory));
+    return employees.map(emp => recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas, statutory));
   });
 
   // Re-run GOSI/OT calculations whenever settings finish loading from the server
@@ -229,7 +279,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       prev?.bahraini_employer_gosi_pct !== settings?.bahraini_employer_gosi_pct ||
       prev?.ot_rate_normal !== settings?.ot_rate_normal;
     if (changed) {
-      setRows(prev => prev.map(row => recompute(row, settings, dim, calcFormulas)));
+      setRows(prev => prev.map(row => recompute(row, settings, dim, calcFormulas, statutory)));
       prevSettingsRef.current = settings;
     }
   }, [settings, dim]);
@@ -238,7 +288,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
     getRows: () => rows,
     addEmployee: (emp) => setRows(prev => {
       if (prev.find(r => r.employee_id === emp.id)) return prev;
-      return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas)];
+      return [...prev, recompute(makeRowFromEmployee(emp, dim, leaveMap, hasLeaveFormula), settings, dim, calcFormulas, statutory)];
     }),
     removeRow: (employeeId) => setRows(prev => prev.filter(r => r.employee_id !== employeeId)),
     syncLeave: (newLeaveMap) => setRows(prev => prev.map(row => {
@@ -247,7 +297,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       const daysWorked = hasLeaveFormula
         ? Math.max(0, dim - leaveDays)
         : Math.max(0, dim - (info.unpaidDays || 0));
-      return recompute({ ...row, leave_days: leaveDays, days_worked: daysWorked }, settings, dim, calcFormulas);
+      return recompute({ ...row, leave_days: leaveDays, days_worked: daysWorked }, settings, dim, calcFormulas, statutory);
     })),
   }));
 
@@ -257,7 +307,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
       let val = key === 'days_worked'
         ? Math.max(0, Math.min(dim, Number(rawVal) || 0))
         : Number(rawVal) || 0;
-      copy[idx] = recompute({ ...copy[idx], [key]: val }, settings, dim, calcFormulas);
+      copy[idx] = recompute({ ...copy[idx], [key]: val }, settings, dim, calcFormulas, statutory);
       return copy;
     });
   };
@@ -295,7 +345,7 @@ const PayrollBulkGrid = forwardRef(function PayrollBulkGrid({ employees = [], av
               if (emp) {
                 setRows(prev => {
                   if (prev.find(r => r.employee_id === emp.id)) return prev;
-                  return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim)];
+                  return [...prev, recompute(makeRowFromEmployee(emp, dim), settings, dim, calcFormulas, statutory)];
                 });
                 e.target.value = '';
               }

@@ -8,6 +8,7 @@ import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { FormField, Input, Select, Textarea } from '../../components/ui/Form';
 import { useForm } from 'react-hook-form';
 import { evaluateFormula, formatCurrency } from '../../lib/calculations';
+import { analyzeFormula } from '../../lib/formulaEngine';
 
 function useCalcSettings(category) {
   return useQuery({
@@ -274,6 +275,16 @@ function FormulaForm({ item, onClose }) {
 
   const upsert = useMutation({
     mutationFn: async (data) => {
+      // Validate the formula against the sandboxed engine before saving —
+      // anything that doesn't parse here won't evaluate at payroll time.
+      let analysis = null;
+      if (data.formula) {
+        try {
+          analysis = analyzeFormula(data.formula);
+        } catch (err) {
+          throw new Error(`Formula error: ${err.message}`);
+        }
+      }
       const vars = data.variables ? data.variables.split(',').map(v => v.trim()).filter(Boolean) : [];
       const payload = { ...data, variables: vars, sort_order: data.sort_order || 0 };
       if (item) {
@@ -282,6 +293,28 @@ function FormulaForm({ item, onClose }) {
       } else {
         const { error } = await supabase.from('calculation_settings').insert(payload);
         if (error) throw error;
+      }
+      // Record a new formula version (audit trail; approval via maker-checker)
+      if (data.formula && data.code) {
+        const { data: existing } = await supabase
+          .from('formula_versions')
+          .select('version_number, formula_expression')
+          .eq('setting_code', data.code)
+          .order('version_number', { ascending: false })
+          .limit(1);
+        const last = existing?.[0];
+        if (!last || last.formula_expression !== data.formula) {
+          const { data: userData } = await supabase.auth.getUser();
+          await supabase.from('formula_versions').insert({
+            setting_code: data.code,
+            version_number: (last?.version_number || 0) + 1,
+            formula_expression: data.formula,
+            variables_used: analysis?.variables || vars,
+            approval_status: 'pending_approval',
+            change_reason: item ? 'Formula updated' : 'Formula created',
+            created_by: userData?.user?.id || null,
+          });
+        }
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['calc-settings'] }); onClose(); },

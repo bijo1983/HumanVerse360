@@ -1,10 +1,13 @@
-import { useState, useRef } from 'react';
-import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, FileDown, RefreshCw } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
+  useStatutoryContext, usePayslipTemplate, useModuleSettings, useStatutoryRules,
 } from '../../hooks/usePayroll';
+import { useCountryConfig } from '../../hooks/useCountryConfig';
+import { useBulkFieldValuesByKey } from '../../hooks/useCustomFields';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,10 +17,33 @@ import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { FormField, Select } from '../../components/ui/Form';
 import { formatCurrency } from '../../lib/calculations';
 import { exportPayrollToExcel } from '../../lib/excelUtils';
+import { generateWpsSif, generatePfEcr, downloadTextFile } from '../../lib/statutoryFiles';
 import PayrollBulkGrid from './PayrollBulkGrid';
 import SalarySlip from './SalarySlip';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Rolls each row's period amounts into the employee's YTD balance — only
+// meaningful for countries running the statutory engine with YTD context
+// (GB/IN/US); Bahrain's legacy GOSI path doesn't track YTD.
+function buildYtdUpdates(rows, statutory, periodEnd) {
+  if (!statutory?.taxYear || !statutory.countryCode || statutory.countryCode === 'BH') return [];
+  return rows.map(row => {
+    const breakdown = row._statutoryBreakdown || [];
+    const findAmt = code => breakdown.find(b => b.code === code)?.employee;
+    const deltas = { GROSS: row.gross_salary || 0 };
+    const paye = findAmt('PAYE'); if (paye) deltas.PAYE = paye;
+    const tds = findAmt('TDS'); if (tds) deltas.TDS = tds;
+    const ssWages = row._statutoryWageBases?.ssWages; if (ssWages) deltas.SS_WAGES = ssWages;
+    return {
+      employeeId: row.employee_id,
+      countryCode: statutory.countryCode,
+      taxYear: statutory.taxYear,
+      periodEnd,
+      deltas,
+    };
+  });
+}
 
 export default function PayrollPage() {
   const { companyId, canDeletePayroll } = useAuth();
@@ -205,6 +231,8 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: allEmployees = [] } = useEmployees({ status: 'Active' }, companyId);
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
+  const periodEnd = new Date(year, month, 0).toISOString().slice(0, 10); // last day of `month`
+  const statutory = useStatutoryContext(periodEnd, allEmployees.map(e => e.id));
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -213,7 +241,8 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
     const rows = gridRef.current?.getRows() ?? [];
     if (!rows.length) { alert('Add at least one employee before saving.'); return; }
     try {
-      await createRun.mutateAsync({ month, year, items: rows, saveAsDraft });
+      const ytdUpdates = saveAsDraft ? [] : buildYtdUpdates(rows, statutory, periodEnd);
+      await createRun.mutateAsync({ month, year, items: rows, saveAsDraft, companyId, ytdUpdates });
       onClose();
     } catch (e) { alert(e.message); }
   };
@@ -274,6 +303,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
           settings={settings}
           leaveMap={leaveMap}
           calcFormulas={calcFormulas}
+          statutory={statutory}
           month={month}
           year={year}
         />
@@ -291,11 +321,26 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: settings } = usePayrollSettings(companyId);
   const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
+  const periodEnd = new Date(run.year, run.month, 0).toISOString().slice(0, 10);
+  const statutory = useStatutoryContext(periodEnd, allEmployees.map(e => e.id));
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
 
   const isDraft = run.status === 'Draft';
+
+  // A draft's stored leave_days reflects whatever was approved at the time
+  // the draft was created/last saved — it goes stale the moment a leave
+  // request is approved afterward. Re-sync once, automatically, whenever
+  // this draft is opened with fresh leave data, so reviewing payroll
+  // always reflects the latest approved leave without HR needing to
+  // remember the manual "Sync Leave" button.
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isDraft || autoSyncedRef.current || isLoading) return;
+    gridRef.current?.syncLeave(leaveMap);
+    autoSyncedRef.current = true;
+  }, [isDraft, isLoading, leaveMap]);
 
   const handleSaveDraft = async () => {
     const rows = gridRef.current?.getRows() ?? [];
@@ -305,14 +350,15 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   };
 
   const handleApprove = async () => {
+    const rows = gridRef.current?.getRows() ?? [];
     if (isDraft) {
-      const rows = gridRef.current?.getRows() ?? [];
       try {
         await saveDraft.mutateAsync({ runId: run.id, companyId, items: rows });
       } catch (e) { alert(e.message); return; }
     }
     try {
-      await approveRun.mutateAsync({ id: run.id, approvedBy: user?.email || 'HR Manager' });
+      const ytdUpdates = buildYtdUpdates(rows, statutory, periodEnd);
+      await approveRun.mutateAsync({ id: run.id, approvedBy: user?.email || 'HR Manager', companyId, ytdUpdates });
       onClose();
     } catch (e) { alert(e.message); }
   };
@@ -384,6 +430,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
           employees={allEmployees}
           settings={settings}
           calcFormulas={calcFormulas}
+          statutory={statutory}
           month={run.month}
           year={run.year}
           existingItems={items}
@@ -393,16 +440,91 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   );
 }
 
+// Builds and downloads the country's statutory compliance file for a run
+// (WPS SIF for AE/BH, PF ECR for IN) — see src/lib/statutoryFiles.js for
+// the format documentation and the "verify with your bank" caveat on WPS.
+function useStatutoryFileExport({ companyId, run, items, countryCode, currencyCode }) {
+  const [loading, setLoading] = useState(false);
+  const isWps = countryCode === 'AE' || countryCode === 'BH';
+  const isPf = countryCode === 'IN';
+  const employeeIds = items.map(i => i.employee_id);
+
+  const { data: wpsSettings } = useModuleSettings(companyId, countryCode, 'WPS');
+  const { data: wpsFieldValues } = useBulkFieldValuesByKey(isWps ? employeeIds : [], ['wps_person_id']);
+  const { data: pfFieldValues } = useBulkFieldValuesByKey(isPf ? employeeIds : [], ['uan']);
+  const { data: pfRuleRows } = useStatutoryRules(isPf ? 'IN' : null);
+
+  if (!isWps && !isPf) return { available: false };
+
+  const download = async () => {
+    setLoading(true);
+    try {
+      if (isWps) {
+        if (!wpsSettings?.wpsEstablishmentId) {
+          alert('Set your WPS establishment ID and bank details first, under Settings → Payroll Settings.');
+          return;
+        }
+        const employeeInfo = {};
+        for (const i of items) {
+          employeeInfo[i.employee_id] = {
+            wpsPersonId: wpsFieldValues?.[i.employee_id]?.wps_person_id || '',
+            accountOrIban: i.employees?.iban || i.employees?.bank_account || '',
+            bankAgentId: wpsSettings.bankShortName,
+          };
+        }
+        const { filename, content, warnings } = generateWpsSif({
+          run, items, employerSettings: wpsSettings, employeeInfo, currencyCode,
+          currencyDecimals: currencyCode === 'BHD' ? 3 : 2,
+        });
+        if (warnings.length) alert(`${warnings.length} employee(s) are missing WPS details — check the file before submitting.\n\n${warnings.join('\n')}`);
+        downloadTextFile(filename, content);
+      } else {
+        const ruleSet = pfRuleRows || [];
+        const num = (key, fallback) => {
+          const row = ruleSet.find(r => r.module_code === 'PF' && r.rule_key === key);
+          return row ? Number(row.rule_value) : fallback;
+        };
+        const pfRules = { employeePct: num('employee_pct', 0.12), epsPct: num('eps_pct', 0.0833), wageCap: num('wage_cap', 15000) };
+        const employeeInfo = {};
+        for (const i of items) {
+          employeeInfo[i.employee_id] = {
+            uan: pfFieldValues?.[i.employee_id]?.uan || '',
+            name: `${i.employees?.first_name || ''} ${i.employees?.last_name || ''}`.trim(),
+          };
+        }
+        const { filename, content, warnings } = generatePfEcr({ run, items, employeeInfo, pfRules });
+        if (warnings.length) alert(`${warnings.length} employee(s) are missing a UAN — check the file before submitting.\n\n${warnings.join('\n')}`);
+        downloadTextFile(filename, content);
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { available: true, loading, label: isWps ? 'WPS SIF' : 'PF ECR', download };
+}
+
 // ─── Read-only approved run ───────────────────────────────────────────────────
 
 function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
-  const { company } = useAuth();
+  const { company, companyId } = useAuth();
+  const { config } = useCountryConfig();
+  const { data: payslipTemplate } = usePayslipTemplate(config.countryCode);
   const [exporting, setExporting] = useState(false);
+  const statutoryFile = useStatutoryFileExport({ companyId, run, items, countryCode: config.countryCode, currencyCode: config.locale.currencyCode });
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportPayrollToExcel(run, items, company?.name);
+      const statutoryLabel = payslipTemplate?.layout?.statutoryDeductionLabel;
+      await exportPayrollToExcel(run, items, company?.name, {
+        currencyCode: config.locale.currencyCode,
+        statutoryEeLabel: statutoryLabel,
+        statutoryErLabel: statutoryLabel ? statutoryLabel.replace('(Employee)', '(Employer)') : undefined,
+        nationalIdLabel: config.identity.nationalIdLabel,
+      });
     } finally {
       setExporting(false);
     }
@@ -454,6 +576,12 @@ function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
             {items.length} employees · Gross: <strong>{formatCurrency(run.total_gross)}</strong> · Net: <strong>{formatCurrency(run.total_net)}</strong>
           </div>
           <div className="flex gap-2">
+            {statutoryFile.available && (
+              <button onClick={statutoryFile.download} disabled={statutoryFile.loading} className="btn-secondary text-sm">
+                <FileDown className="w-4 h-4" />
+                {statutoryFile.loading ? 'Preparing…' : statutoryFile.label}
+              </button>
+            )}
             <button onClick={handleExport} disabled={exporting} className="btn-secondary text-sm">
               <FileSpreadsheet className="w-4 h-4" />
               {exporting ? 'Exporting…' : 'Export to Excel'}

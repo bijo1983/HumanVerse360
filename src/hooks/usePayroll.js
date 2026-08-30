@@ -1,5 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { resolveTaxYear } from '../lib/taxYear';
+import { useBulkFieldValuesByKey } from './useCustomFields';
+
+// field_key -> the computeStatutory() ctx key it feeds, plus an optional
+// normalizer (the custom_fields "select" options use human labels like
+// "New Regime" where the engine expects a short code like "new").
+const TAX_PROFILE_FIELDS = {
+  nationality_class: { ctxKey: 'nationalityClass' },
+  tax_code: { ctxKey: 'taxCode' },
+  pension_pct: { ctxKey: 'pensionPct', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  student_loan_plan: { ctxKey: 'studentLoanPlan' },
+  pt_state: { ctxKey: 'ptState' },
+  tax_regime: { ctxKey: 'taxRegime', normalize: v => (/old/i.test(v || '') ? 'old' : 'new') },
+  w4_filing_status: { ctxKey: 'filingStatus' },
+  w4_dependents_amount: { ctxKey: 'w4Dependents', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  w4_extra_withholding: { ctxKey: 'w4ExtraWithholding', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  state_tax_state: { ctxKey: 'taxState' },
+};
+
+// Posts a batch of YTD deltas via the increment_ytd_balance RPC. Shared by
+// useCreatePayrollRunWithItems (run created already-approved) and
+// useApprovePayrollRun (draft promoted to approved) so a run's amounts are
+// rolled into next period's cumulative totals exactly once.
+async function postYtdUpdates(companyId, ytdUpdates = []) {
+  for (const u of ytdUpdates) {
+    for (const [componentCode, delta] of Object.entries(u.deltas || {})) {
+      if (!delta) continue;
+      const { error } = await supabase.rpc('increment_ytd_balance', {
+        p_company_id: companyId,
+        p_employee_id: u.employeeId,
+        p_country_code: u.countryCode,
+        p_tax_year: u.taxYear,
+        p_component_code: componentCode,
+        p_delta: delta,
+        p_period_end: u.periodEnd,
+      });
+      if (error) throw error;
+    }
+  }
+}
 
 const DEFAULT_SETTINGS = {
   bahraini_employee_gosi_pct: 8,
@@ -63,7 +104,7 @@ export function usePayrollLineItems(runId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('payroll_line_items')
-        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id)')
+        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id, cpr_number, bank_account, iban)')
         .eq('payroll_run_id', runId)
         .order('created_at');
       if (error) throw error;
@@ -77,7 +118,7 @@ export function usePayrollLineItems(runId) {
 export function useCreatePayrollRunWithItems(companyId) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ month, year, items, saveAsDraft = true }) => {
+    mutationFn: async ({ month, year, items, saveAsDraft = true, ytdUpdates = [] }) => {
       const { data: existing } = await supabase
         .from('payroll_runs')
         .select('id')
@@ -136,9 +177,16 @@ export function useCreatePayrollRunWithItems(companyId) {
         total_net: totals.net,
       }).eq('id', run.id);
 
+      // Only post YTD balances when the run is created already-approved —
+      // a draft can still be edited, and re-editing must not double-count.
+      if (!saveAsDraft) await postYtdUpdates(companyId, ytdUpdates);
+
       return run;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] });
+      qc.invalidateQueries({ queryKey: ['ytd-balances'] });
+    },
   });
 }
 
@@ -214,7 +262,11 @@ export function useUpdatePayrollItem() {
 export function useApprovePayrollRun() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, approvedBy }) => {
+    // ytdUpdates (optional): [{ employeeId, countryCode, taxYear, periodEnd,
+    //   deltas: { GROSS: 3000, PAYE: 390.5, SS_WAGES: 3000, TDS: ... } }]
+    // Rolls this period's amounts into next period's cumulative YTD balance —
+    // only done on approval (a draft can be re-edited without double counting).
+    mutationFn: async ({ id, approvedBy, companyId, ytdUpdates = [] }) => {
       const { error } = await supabase.from('payroll_runs').update({
         status: 'Approved',
         approved_by: approvedBy,
@@ -223,8 +275,38 @@ export function useApprovePayrollRun() {
       }).eq('id', id);
       if (error) throw error;
       await supabase.from('payroll_line_items').update({ status: 'Approved' }).eq('payroll_run_id', id);
+
+      await postYtdUpdates(companyId, ytdUpdates);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['ytd-balances'] });
+    },
+  });
+}
+
+// Cumulative YTD balances for every employee in a company for a tax year,
+// keyed by employee then component code — e.g. balances[empId].GROSS.
+// Used to feed the "before this period" totals into the statutory engine
+// (GB cumulative PAYE, US SS wage-base capping, India TDS true-up).
+export function useYtdBalances(companyId, taxYear) {
+  return useQuery({
+    queryKey: ['ytd-balances', companyId, taxYear],
+    enabled: !!companyId && !!taxYear,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payroll_ytd_balances')
+        .select('employee_id, component_code, cumulative_amount')
+        .eq('company_id', companyId)
+        .eq('tax_year', taxYear);
+      if (error) throw error;
+      const byEmployee = {};
+      for (const row of data || []) {
+        byEmployee[row.employee_id] = byEmployee[row.employee_id] || {};
+        byEmployee[row.employee_id][row.component_code] = Number(row.cumulative_amount) || 0;
+      }
+      return byEmployee;
+    },
   });
 }
 
@@ -256,6 +338,134 @@ export function useDeletePayrollRun(companyId) {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] }),
+  });
+}
+
+// Effective statutory rate rules for a country (consumed by src/lib/statutory.js)
+export function useStatutoryRules(countryCode) {
+  return useQuery({
+    queryKey: ['statutory-rules', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('country_statutory_rules')
+        .select('*')
+        .eq('country_code', countryCode)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// Active tax rules (+slabs) for a country
+export function useCountryTaxRules(countryCode) {
+  return useQuery({
+    queryKey: ['tax-rules', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('tax_rules')
+        .select('*, tax_slabs(*)')
+        .eq('country_code', countryCode)
+        .eq('is_active', true)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// Ready-to-use statutory context for the current company's country,
+// consumed by the payroll grid / computeStatutory(). Pass the payroll
+// period's end date to also resolve the tax year and pull each
+// employee's YTD balances (needed for GB cumulative PAYE, US FICA wage
+// base capping, and India TDS true-up) — omit it for a country/date-
+// agnostic context (e.g. simple monthly-average approximations still apply).
+// employeeIds (optional): when provided, also loads each employee's tax
+// profile fields (national class, tax code, W-4 details, PT state, tax
+// regime...) collected on the employee record — see TAX_PROFILE_FIELDS —
+// and returns them normalized as `taxProfiles[employeeId]`, ready to spread
+// straight into computeStatutory()'s ctx.
+export function useStatutoryContext(periodEndDate, employeeIds = []) {
+  const { company } = useAuth();
+  const countryCode = company?.country_code || 'BH';
+  const { data: ruleRows = [] } = useStatutoryRules(countryCode);
+  const { data: taxRules = [] } = useCountryTaxRules(countryCode);
+
+  const taxYearInfo = periodEndDate ? resolveTaxYear(countryCode, periodEndDate) : null;
+  const { data: ytdBalances = {} } = useYtdBalances(company?.id, taxYearInfo?.label);
+
+  const { data: rawProfiles = {} } = useBulkFieldValuesByKey(employeeIds, Object.keys(TAX_PROFILE_FIELDS));
+  const taxProfiles = {};
+  for (const [employeeId, fields] of Object.entries(rawProfiles)) {
+    const profile = {};
+    for (const [fieldKey, raw] of Object.entries(fields)) {
+      const spec = TAX_PROFILE_FIELDS[fieldKey];
+      if (!spec) continue;
+      const value = spec.normalize ? spec.normalize(raw) : raw;
+      if (value !== undefined) profile[spec.ctxKey] = value;
+    }
+    taxProfiles[employeeId] = profile;
+  }
+
+  return {
+    countryCode,
+    ruleRows,
+    taxRules,
+    ytdBalances,
+    taxProfiles,
+    taxYear: taxYearInfo?.label,
+    monthsElapsed: taxYearInfo?.monthsElapsed,
+    monthsRemaining: taxYearInfo?.monthsRemaining,
+  };
+}
+
+// Active EOSB/gratuity rule for a country (company override > platform template)
+export function useEosbRule(countryCode) {
+  return useQuery({
+    queryKey: ['eosb-rule', countryCode],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('eosb_rules')
+        .select('*')
+        .eq('country_code', countryCode)
+        .eq('is_active', true)
+        .lte('effective_from', today)
+        .or(`effective_to.is.null,effective_to.gte.${today}`);
+      if (error) throw error;
+      const rows = data || [];
+      return rows.find(r => r.company_id) ?? rows.find(r => !r.company_id) ?? null;
+    },
+  });
+}
+
+// Payslip layout template for a country (company override > platform template)
+export function usePayslipTemplate(countryCode) {
+  const { company } = useAuth();
+  return useQuery({
+    queryKey: ['payslip-template', countryCode, company?.id],
+    enabled: !!countryCode,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payslip_templates')
+        .select('*')
+        .eq('country_code', countryCode)
+        .eq('is_active', true);
+      if (error) throw error;
+      const rows = data || [];
+      return rows.find(r => r.company_id === company?.id) ?? rows.find(r => !r.company_id) ?? null;
+    },
   });
 }
 
@@ -356,5 +566,65 @@ export function useSalaryComponents(companyId) {
       if (error) throw error;
       return data ?? [];
     },
+  });
+}
+
+// Company-level settings for one statutory module (e.g. WPS employer ID +
+// bank agent code, or a PF establishment code) — stored as JSON on
+// company_statutory_modules.settings (Phase 5 migration 36). Used by the
+// statutory file generators (WPS SIF, PF ECR) for employer-identifying
+// fields that don't belong on the employee record.
+export function useModuleSettings(companyId, countryCode, moduleCode) {
+  return useQuery({
+    queryKey: ['module-settings', companyId, countryCode, moduleCode],
+    enabled: !!companyId && !!countryCode && !!moduleCode,
+    queryFn: async () => {
+      const { data: mod, error: modError } = await supabase
+        .from('statutory_modules')
+        .select('id')
+        .eq('country_code', countryCode)
+        .eq('module_code', moduleCode)
+        .maybeSingle();
+      if (modError) throw modError;
+      if (!mod) return {};
+      const { data, error } = await supabase
+        .from('company_statutory_modules')
+        .select('settings')
+        .eq('company_id', companyId)
+        .eq('module_id', mod.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.settings || {};
+    },
+  });
+}
+
+export function useSaveModuleSettings(companyId, countryCode, moduleCode) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings) => {
+      const { data: mod, error: modError } = await supabase
+        .from('statutory_modules')
+        .select('id')
+        .eq('country_code', countryCode)
+        .eq('module_code', moduleCode)
+        .maybeSingle();
+      if (modError) throw modError;
+      if (!mod) throw new Error(`Statutory module ${moduleCode} is not defined for ${countryCode}`);
+      // Preserve is_enabled if a row already exists — saving settings shouldn't
+      // silently re-enable a module a company explicitly turned off.
+      const { data: existing } = await supabase
+        .from('company_statutory_modules')
+        .select('is_enabled')
+        .eq('company_id', companyId)
+        .eq('module_id', mod.id)
+        .maybeSingle();
+      const { error } = await supabase.from('company_statutory_modules').upsert(
+        { company_id: companyId, module_id: mod.id, is_enabled: existing?.is_enabled ?? true, settings },
+        { onConflict: 'company_id,module_id' }
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['module-settings', companyId, countryCode, moduleCode] }),
   });
 }

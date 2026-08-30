@@ -14,6 +14,7 @@ import IndemnityPage from './pages/indemnity/IndemnityPage';
 import CalculationSettings from './pages/settings/CalculationSettings';
 import GeneralSettings from './pages/settings/GeneralSettings';
 import PayrollSettings from './pages/settings/PayrollSettings';
+import CountrySetupWizard from './pages/settings/CountrySetupWizard';
 import ESSPage from './pages/ess/ESSPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -94,6 +95,7 @@ function AppRoutes() {
         <Route path="settings/calculations" element={<SubscriptionGuard module="settings"><CalculationSettings /></SubscriptionGuard>} />
         <Route path="settings/general" element={<SubscriptionGuard module="settings"><GeneralSettings /></SubscriptionGuard>} />
         <Route path="settings/payroll" element={<SubscriptionGuard module="settings"><PayrollSettings /></SubscriptionGuard>} />
+        <Route path="settings/country-setup" element={<SubscriptionGuard module="settings"><CountrySetupWizard /></SubscriptionGuard>} />
         <Route path="ess" element={<SubscriptionGuard module="ess"><ESSPage /></SubscriptionGuard>} />
         <Route path="subscription" element={<SubscriptionPage />} />
       </Route>
