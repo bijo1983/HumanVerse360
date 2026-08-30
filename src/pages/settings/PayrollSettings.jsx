@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Settings2, Percent, Clock, Calendar, Save, Info, Layers, Edit, Plus } from 'lucide-react';
+import { Settings2, Percent, Clock, Calendar, Save, Info, Layers, Edit, Plus, FileDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePayrollSettings, useUpsertPayrollSettings, usePayrollComponents, useSaveCompanyComponent } from '../../hooks/usePayroll';
+import { usePayrollSettings, useUpsertPayrollSettings, usePayrollComponents, useSaveCompanyComponent, useModuleSettings, useSaveModuleSettings } from '../../hooks/usePayroll';
 import { useCountryConfig } from '../../hooks/useCountryConfig';
 import { FormField, Input, Select } from '../../components/ui/Form';
 import { Modal } from '../../components/ui/Modal';
@@ -171,6 +171,74 @@ export default function PayrollSettings() {
       </form>
 
       <PayrollComponentsCard companyId={companyId} />
+      <StatutoryFileSettingsCard companyId={companyId} />
+    </div>
+  );
+}
+
+// Employer-identifying settings needed to generate statutory compliance
+// files (WPS SIF for AE/BH, PF ECR context for IN) — stored on
+// company_statutory_modules.settings, not on the employee record.
+function StatutoryFileSettingsCard({ companyId }) {
+  const { config } = useCountryConfig();
+  const countryCode = config.countryCode;
+  const moduleCode = countryCode === 'IN' ? 'PF' : 'WPS';
+  const isWps = moduleCode === 'WPS';
+  const applicable = config.flags.wps || countryCode === 'IN';
+
+  const { data: settings, isLoading } = useModuleSettings(companyId, countryCode, moduleCode);
+  const save = useSaveModuleSettings(companyId, countryCode, moduleCode);
+  const { register, handleSubmit, reset, formState: { isDirty } } = useForm({ values: settings || {} });
+
+  useEffect(() => { if (settings) reset(settings); }, [settings, reset]);
+
+  if (!applicable) return null;
+  if (isLoading) return null;
+
+  const onSubmit = async data => {
+    try { await save.mutateAsync(data); } catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+          <FileDown className="w-4 h-4 text-blue-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-secondary-900">
+            {isWps ? 'WPS File Settings' : 'PF Establishment Settings'}
+          </h3>
+          <p className="text-xs text-secondary-500">
+            {isWps
+              ? 'Employer details required to generate the Wage Protection System Salary Information File (SIF) for your bank'
+              : 'Used to compute the PF wage base shown in the Electronic Challan cum Return (ECR) export'}
+          </p>
+        </div>
+      </div>
+      {isWps ? (
+        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Employer Name (as registered with WPS)"><Input {...register('employerName')} /></FormField>
+          <FormField label="WPS Establishment / Employer Unique ID"><Input {...register('wpsEstablishmentId')} /></FormField>
+          <FormField label="Bank Short Name / WPS Agent"><Input {...register('bankShortName')} placeholder="e.g. ADCB, BBK" /></FormField>
+          <FormField label="Employer Bank Account / IBAN"><Input {...register('employerAccountOrIban')} /></FormField>
+          <div className="sm:col-span-2 flex justify-end">
+            <button type="submit" disabled={save.isPending || !isDirty} className="btn-primary">
+              <Save className="w-4 h-4" /> {save.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="text-sm text-secondary-500">
+          PF wage base and contribution split are computed automatically from the country statutory rate rules.
+          No additional employer settings are required.
+        </p>
+      )}
+      <p className="mt-3 text-xs text-secondary-400 bg-secondary-50 border border-secondary-200 rounded-lg px-3 py-2">
+        {isWps
+          ? 'Confirm the exact field order and agent codes with your WPS onboarding bank before your first live submission — some banks customize trailing fields.'
+          : 'This is the standard EPFO ECR v2.0 layout.'}
+      </p>
     </div>
   );
 }

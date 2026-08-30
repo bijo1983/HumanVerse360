@@ -1,12 +1,13 @@
 import { useState, useRef } from 'react';
-import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, FileDown, RefreshCw } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
   useCreatePayrollRunWithItems, useSaveDraftItems,
   useApprovePayrollRun, usePayrollSettings, useDeletePayrollRun, usePayrollFormulas,
-  useStatutoryContext, usePayslipTemplate,
+  useStatutoryContext, usePayslipTemplate, useModuleSettings, useStatutoryRules,
 } from '../../hooks/usePayroll';
 import { useCountryConfig } from '../../hooks/useCountryConfig';
+import { useBulkFieldValuesByKey } from '../../hooks/useCustomFields';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useApprovedLeaveForMonth } from '../../hooks/useLeave';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +17,7 @@ import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { FormField, Select } from '../../components/ui/Form';
 import { formatCurrency } from '../../lib/calculations';
 import { exportPayrollToExcel } from '../../lib/excelUtils';
+import { generateWpsSif, generatePfEcr, downloadTextFile } from '../../lib/statutoryFiles';
 import PayrollBulkGrid from './PayrollBulkGrid';
 import SalarySlip from './SalarySlip';
 
@@ -425,13 +427,80 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   );
 }
 
+// Builds and downloads the country's statutory compliance file for a run
+// (WPS SIF for AE/BH, PF ECR for IN) — see src/lib/statutoryFiles.js for
+// the format documentation and the "verify with your bank" caveat on WPS.
+function useStatutoryFileExport({ companyId, run, items, countryCode, currencyCode }) {
+  const [loading, setLoading] = useState(false);
+  const isWps = countryCode === 'AE' || countryCode === 'BH';
+  const isPf = countryCode === 'IN';
+  const employeeIds = items.map(i => i.employee_id);
+
+  const { data: wpsSettings } = useModuleSettings(companyId, countryCode, 'WPS');
+  const { data: wpsFieldValues } = useBulkFieldValuesByKey(isWps ? employeeIds : [], ['wps_person_id']);
+  const { data: pfFieldValues } = useBulkFieldValuesByKey(isPf ? employeeIds : [], ['uan']);
+  const { data: pfRuleRows } = useStatutoryRules(isPf ? 'IN' : null);
+
+  if (!isWps && !isPf) return { available: false };
+
+  const download = async () => {
+    setLoading(true);
+    try {
+      if (isWps) {
+        if (!wpsSettings?.wpsEstablishmentId) {
+          alert('Set your WPS establishment ID and bank details first, under Settings → Payroll Settings.');
+          return;
+        }
+        const employeeInfo = {};
+        for (const i of items) {
+          employeeInfo[i.employee_id] = {
+            wpsPersonId: wpsFieldValues?.[i.employee_id]?.wps_person_id || '',
+            accountOrIban: i.employees?.iban || i.employees?.bank_account || '',
+            bankAgentId: wpsSettings.bankShortName,
+          };
+        }
+        const { filename, content, warnings } = generateWpsSif({
+          run, items, employerSettings: wpsSettings, employeeInfo, currencyCode,
+          currencyDecimals: currencyCode === 'BHD' ? 3 : 2,
+        });
+        if (warnings.length) alert(`${warnings.length} employee(s) are missing WPS details — check the file before submitting.\n\n${warnings.join('\n')}`);
+        downloadTextFile(filename, content);
+      } else {
+        const ruleSet = pfRuleRows || [];
+        const num = (key, fallback) => {
+          const row = ruleSet.find(r => r.module_code === 'PF' && r.rule_key === key);
+          return row ? Number(row.rule_value) : fallback;
+        };
+        const pfRules = { employeePct: num('employee_pct', 0.12), epsPct: num('eps_pct', 0.0833), wageCap: num('wage_cap', 15000) };
+        const employeeInfo = {};
+        for (const i of items) {
+          employeeInfo[i.employee_id] = {
+            uan: pfFieldValues?.[i.employee_id]?.uan || '',
+            name: `${i.employees?.first_name || ''} ${i.employees?.last_name || ''}`.trim(),
+          };
+        }
+        const { filename, content, warnings } = generatePfEcr({ run, items, employeeInfo, pfRules });
+        if (warnings.length) alert(`${warnings.length} employee(s) are missing a UAN — check the file before submitting.\n\n${warnings.join('\n')}`);
+        downloadTextFile(filename, content);
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { available: true, loading, label: isWps ? 'WPS SIF' : 'PF ECR', download };
+}
+
 // ─── Read-only approved run ───────────────────────────────────────────────────
 
 function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
-  const { company } = useAuth();
+  const { company, companyId } = useAuth();
   const { config } = useCountryConfig();
   const { data: payslipTemplate } = usePayslipTemplate(config.countryCode);
   const [exporting, setExporting] = useState(false);
+  const statutoryFile = useStatutoryFileExport({ companyId, run, items, countryCode: config.countryCode, currencyCode: config.locale.currencyCode });
 
   const handleExport = async () => {
     setExporting(true);
@@ -494,6 +563,12 @@ function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
             {items.length} employees · Gross: <strong>{formatCurrency(run.total_gross)}</strong> · Net: <strong>{formatCurrency(run.total_net)}</strong>
           </div>
           <div className="flex gap-2">
+            {statutoryFile.available && (
+              <button onClick={statutoryFile.download} disabled={statutoryFile.loading} className="btn-secondary text-sm">
+                <FileDown className="w-4 h-4" />
+                {statutoryFile.loading ? 'Preparing…' : statutoryFile.label}
+              </button>
+            )}
             <button onClick={handleExport} disabled={exporting} className="btn-secondary text-sm">
               <FileSpreadsheet className="w-4 h-4" />
               {exporting ? 'Exporting…' : 'Export to Excel'}

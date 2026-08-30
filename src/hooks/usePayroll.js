@@ -87,7 +87,7 @@ export function usePayrollLineItems(runId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('payroll_line_items')
-        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id, cpr_number)')
+        .select('*, employees(first_name, last_name, employee_id, nationality, department_id, position_id, cpr_number, bank_account, iban)')
         .eq('payroll_run_id', runId)
         .order('created_at');
       if (error) throw error;
@@ -530,5 +530,65 @@ export function useSalaryComponents(companyId) {
       if (error) throw error;
       return data ?? [];
     },
+  });
+}
+
+// Company-level settings for one statutory module (e.g. WPS employer ID +
+// bank agent code, or a PF establishment code) — stored as JSON on
+// company_statutory_modules.settings (Phase 5 migration 36). Used by the
+// statutory file generators (WPS SIF, PF ECR) for employer-identifying
+// fields that don't belong on the employee record.
+export function useModuleSettings(companyId, countryCode, moduleCode) {
+  return useQuery({
+    queryKey: ['module-settings', companyId, countryCode, moduleCode],
+    enabled: !!companyId && !!countryCode && !!moduleCode,
+    queryFn: async () => {
+      const { data: mod, error: modError } = await supabase
+        .from('statutory_modules')
+        .select('id')
+        .eq('country_code', countryCode)
+        .eq('module_code', moduleCode)
+        .maybeSingle();
+      if (modError) throw modError;
+      if (!mod) return {};
+      const { data, error } = await supabase
+        .from('company_statutory_modules')
+        .select('settings')
+        .eq('company_id', companyId)
+        .eq('module_id', mod.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.settings || {};
+    },
+  });
+}
+
+export function useSaveModuleSettings(companyId, countryCode, moduleCode) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings) => {
+      const { data: mod, error: modError } = await supabase
+        .from('statutory_modules')
+        .select('id')
+        .eq('country_code', countryCode)
+        .eq('module_code', moduleCode)
+        .maybeSingle();
+      if (modError) throw modError;
+      if (!mod) throw new Error(`Statutory module ${moduleCode} is not defined for ${countryCode}`);
+      // Preserve is_enabled if a row already exists — saving settings shouldn't
+      // silently re-enable a module a company explicitly turned off.
+      const { data: existing } = await supabase
+        .from('company_statutory_modules')
+        .select('is_enabled')
+        .eq('company_id', companyId)
+        .eq('module_id', mod.id)
+        .maybeSingle();
+      const { error } = await supabase.from('company_statutory_modules').upsert(
+        { company_id: companyId, module_id: mod.id, is_enabled: existing?.is_enabled ?? true, settings },
+        { onConflict: 'company_id,module_id' }
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['module-settings', companyId, countryCode, moduleCode] }),
   });
 }

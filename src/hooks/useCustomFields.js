@@ -46,6 +46,43 @@ export function useEmployeeCustomValues(employeeId) {
   });
 }
 
+// Batch-fetch custom field values for many employees at once, keyed by
+// field_key (not the raw custom_field_id) — used by statutory file exports
+// (WPS SIF person ID, PF ECR UAN/PF number) that need a specific field
+// across a whole payroll run's employees in one query.
+export function useBulkFieldValuesByKey(employeeIds, fieldKeys) {
+  return useQuery({
+    queryKey: ['bulk-custom-values', [...(employeeIds || [])].sort(), [...(fieldKeys || [])].sort()],
+    enabled: (employeeIds || []).length > 0 && (fieldKeys || []).length > 0,
+    queryFn: async () => {
+      const { data: fields, error: fieldsError } = await supabase
+        .from('custom_fields')
+        .select('id, field_key')
+        .in('field_key', fieldKeys);
+      if (fieldsError) throw fieldsError;
+      const fieldIdToKey = Object.fromEntries((fields || []).map(f => [f.id, f.field_key]));
+      const fieldIds = Object.keys(fieldIdToKey);
+      if (fieldIds.length === 0) return {};
+
+      const { data: values, error: valuesError } = await supabase
+        .from('employee_custom_values')
+        .select('employee_id, custom_field_id, value')
+        .in('employee_id', employeeIds)
+        .in('custom_field_id', fieldIds);
+      if (valuesError) throw valuesError;
+
+      const byEmployee = {};
+      for (const v of values || []) {
+        const key = fieldIdToKey[v.custom_field_id];
+        if (!key) continue;
+        byEmployee[v.employee_id] = byEmployee[v.employee_id] || {};
+        byEmployee[v.employee_id][key] = v.value;
+      }
+      return byEmployee;
+    },
+  });
+}
+
 // Save custom field values for an employee (upsert all)
 export function useSaveCustomValues(companyId) {
   const qc = useQueryClient();
