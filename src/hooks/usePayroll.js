@@ -114,29 +114,81 @@ export function usePayrollLineItems(runId) {
   });
 }
 
-// Creates a payroll run from pre-computed grid rows
+// Employees who already have a payroll_line_items row for a given period —
+// used so opening "New Payroll Run" for a month/year that already has a run
+// (e.g. one employee processed individually) doesn't re-offer them, and so
+// bulk processing merges into that run instead of being blocked entirely.
+export function useExistingPayrollForPeriod(companyId, month, year) {
+  return useQuery({
+    queryKey: ['payroll-existing-period', companyId, month, year],
+    enabled: !!companyId && !!month && !!year,
+    queryFn: async () => {
+      const { data: run } = await supabase
+        .from('payroll_runs')
+        .select('id, status')
+        .eq('company_id', companyId)
+        .eq('month', month)
+        .eq('year', year)
+        .maybeSingle();
+      if (!run) return { runId: null, status: null, employeeIds: new Set() };
+      const { data: items } = await supabase
+        .from('payroll_line_items')
+        .select('employee_id')
+        .eq('payroll_run_id', run.id);
+      return { runId: run.id, status: run.status, employeeIds: new Set((items || []).map(i => i.employee_id)) };
+    },
+  });
+}
+
+// Creates a payroll run from pre-computed grid rows. If a run already
+// exists for this company/month/year (e.g. an employee was processed
+// individually earlier), merges into it instead of failing: employees who
+// already have a line item there are skipped, and the rest are inserted
+// into that same run rather than a new one.
 export function useCreatePayrollRunWithItems(companyId) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ month, year, items, saveAsDraft = true, ytdUpdates = [] }) => {
       const { data: existing } = await supabase
         .from('payroll_runs')
-        .select('id')
+        .select('id, status')
         .eq('company_id', companyId)
         .eq('month', month)
         .eq('year', year)
         .maybeSingle();
-      if (existing) throw new Error(`Payroll for ${month}/${year} already exists.`);
 
-      const status = saveAsDraft ? 'Draft' : 'Approved';
-      const { data: run, error: runError } = await supabase
-        .from('payroll_runs')
-        .insert({ month, year, status, company_id: companyId })
-        .select()
-        .single();
-      if (runError) throw runError;
+      let run = existing;
+      let itemsToInsert = items;
+      let skippedCount = 0;
 
-      const lineItems = items.map(row => ({
+      if (existing) {
+        const { data: existingLineItems } = await supabase
+          .from('payroll_line_items')
+          .select('employee_id')
+          .eq('payroll_run_id', existing.id);
+        const already = new Set((existingLineItems || []).map(i => i.employee_id));
+        itemsToInsert = items.filter(row => !already.has(row.employee_id));
+        skippedCount = items.length - itemsToInsert.length;
+        if (!itemsToInsert.length) {
+          throw new Error(`All selected employees already have payroll processed for ${month}/${year}.`);
+        }
+      } else {
+        const status = saveAsDraft ? 'Draft' : 'Approved';
+        const { data: newRun, error: runError } = await supabase
+          .from('payroll_runs')
+          .insert({ month, year, status, company_id: companyId })
+          .select()
+          .single();
+        if (runError) throw runError;
+        run = newRun;
+      }
+
+      // New items joining an already-Approved run are also Approved, so the
+      // run doesn't end up half-Draft/half-Approved; otherwise follow the
+      // chosen save mode as before.
+      const itemStatus = existing ? existing.status : (saveAsDraft ? 'Draft' : 'Approved');
+
+      const lineItems = itemsToInsert.map(row => ({
         payroll_run_id: run.id,
         company_id: companyId,
         employee_id: row.employee_id,
@@ -159,7 +211,7 @@ export function useCreatePayrollRunWithItems(companyId) {
         working_days: row.days_worked || 0,
         absent_days: row.absent_days || 0,
         leave_days: row.leave_days || 0,
-        status,
+        status: itemStatus,
       }));
 
       if (lineItems.length) {
@@ -167,36 +219,56 @@ export function useCreatePayrollRunWithItems(companyId) {
         if (itemsError) throw itemsError;
       }
 
-      const totals = lineItems.reduce(
-        (acc, i) => ({ gross: acc.gross + i.gross_salary, ded: acc.ded + i.total_deductions, net: acc.net + i.net_salary }),
+      // Recompute totals from every item now on the run (pre-existing +
+      // newly inserted), not just this batch, since a merge only adds a
+      // subset of the run's employees.
+      const { data: allItems } = await supabase
+        .from('payroll_line_items')
+        .select('gross_salary, total_deductions, net_salary')
+        .eq('payroll_run_id', run.id);
+      const totals = (allItems || []).reduce(
+        (acc, i) => ({ gross: acc.gross + (i.gross_salary || 0), ded: acc.ded + (i.total_deductions || 0), net: acc.net + (i.net_salary || 0) }),
         { gross: 0, ded: 0, net: 0 }
       );
       await supabase.from('payroll_runs').update({
-        total_employees: lineItems.length,
+        total_employees: (allItems || []).length,
         total_gross: totals.gross,
         total_deductions: totals.ded,
         total_net: totals.net,
       }).eq('id', run.id);
 
-      // Only post YTD balances when the run is created already-approved —
+      // Only post YTD balances for items that were actually just approved —
       // a draft can still be edited, and re-editing must not double-count.
-      if (!saveAsDraft) await postYtdUpdates(companyId, ytdUpdates);
+      // Filtering to itemsToInsert also keeps a merge from re-posting YTD
+      // for employees who were already in the run before this save.
+      if (itemStatus === 'Approved') {
+        const insertedIds = new Set(itemsToInsert.map(r => r.employee_id));
+        await postYtdUpdates(companyId, ytdUpdates.filter(u => insertedIds.has(u.employeeId)));
+      }
 
-      return run;
+      return { ...run, skippedCount };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs', companyId] });
+      qc.invalidateQueries({ queryKey: ['payroll-existing-period'] });
       qc.invalidateQueries({ queryKey: ['ytd-balances'] });
     },
   });
 }
 
-// Bulk-updates all line items in a draft run then recalculates run totals
+// Bulk-updates all line items in a draft run then recalculates run totals.
+// Rows without an `id` were added to the grid via the "+ Add employee"
+// dropdown during this edit session and don't exist in the DB yet, so they
+// need an insert rather than an update — an update keyed on an undefined id
+// would silently match nothing and drop the new employee.
 export function useSaveDraftItems() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ runId, companyId, items }) => {
-      await Promise.all(items.map(row =>
+      const existingRows = items.filter(row => row.id);
+      const newRows = items.filter(row => !row.id);
+
+      await Promise.all(existingRows.map(row =>
         supabase.from('payroll_line_items').update({
           basic_salary: row.basic_salary || 0,
           housing_allowance: row.housing_allowance || 0,
@@ -221,11 +293,41 @@ export function useSaveDraftItems() {
         }).eq('id', row.id)
       ));
 
+      if (newRows.length) {
+        const { error } = await supabase.from('payroll_line_items').insert(newRows.map(row => ({
+          payroll_run_id: runId,
+          company_id: companyId,
+          employee_id: row.employee_id,
+          basic_salary: row.basic_salary || 0,
+          housing_allowance: row.housing_allowance || 0,
+          transport_allowance: row.transport_allowance || 0,
+          food_allowance: row.food_allowance || 0,
+          other_allowances: row.other_allowances || 0,
+          overtime_hours: row.overtime_hours || 0,
+          overtime_amount: row.overtime_amount || 0,
+          bonus: row.bonus || 0,
+          gross_salary: row.gross_salary || 0,
+          gosi_employee: row.gosi_employee || 0,
+          gosi_employer: row.gosi_employer || 0,
+          leave_deduction: row.leave_deduction || 0,
+          loan_deduction: row.loan_deduction || 0,
+          other_deductions: row.other_deductions || 0,
+          total_deductions: row.total_deductions || 0,
+          net_salary: row.net_salary || 0,
+          working_days: row.days_worked || 0,
+          absent_days: row.absent_days || 0,
+          leave_days: row.leave_days || 0,
+          status: 'Draft',
+        })));
+        if (error) throw error;
+      }
+
       const totals = items.reduce(
         (acc, i) => ({ gross: acc.gross + (i.gross_salary || 0), ded: acc.ded + (i.total_deductions || 0), net: acc.net + (i.net_salary || 0) }),
         { gross: 0, ded: 0, net: 0 }
       );
       await supabase.from('payroll_runs').update({
+        total_employees: items.length,
         total_gross: totals.gross,
         total_deductions: totals.ded,
         total_net: totals.net,
@@ -235,6 +337,7 @@ export function useSaveDraftItems() {
     onSuccess: (_, { runId }) => {
       qc.invalidateQueries({ queryKey: ['payroll-items', runId] });
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-existing-period'] });
     },
   });
 }
