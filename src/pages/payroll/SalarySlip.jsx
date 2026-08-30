@@ -77,6 +77,7 @@ export default function SalarySlip({ employee, onClose }) {
 
   const deductionBreakdown = [
     { label: statutoryLabel, amount: item.gosi_employee },
+    { label: 'Leave Deduction', amount: item.leave_deduction },
     { label: 'Loan Deduction', amount: item.loan_deduction },
     { label: 'Other Deductions', amount: item.other_deductions },
   ].filter(i => i.amount > 0);

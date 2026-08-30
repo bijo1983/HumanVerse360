@@ -552,6 +552,7 @@ function ReadOnlyRunModal({ run, items, onClose, onViewSlip }) {
     { header: 'Gross', key: 'gross_salary', render: v => <span className="font-semibold">{formatCurrency(v)}</span>, cellClassName: 'font-mono text-sm' },
     { header: 'GOSI Emp', key: 'gosi_employee', render: v => v > 0 ? <span className="text-error-600">{formatCurrency(v)}</span> : '–', cellClassName: 'font-mono text-sm' },
     { header: 'GOSI Er.', key: 'gosi_employer', render: v => v > 0 ? <span className="text-orange-600">{formatCurrency(v)}</span> : '–', cellClassName: 'font-mono text-sm' },
+    { header: 'Leave Ded.', key: 'leave_deduction', render: v => v > 0 ? <span className="text-error-600">{formatCurrency(v)}</span> : '–', cellClassName: 'font-mono text-sm' },
     { header: 'Deductions', key: 'total_deductions', render: v => v > 0 ? <span className="text-error-600">{formatCurrency(v)}</span> : '–', cellClassName: 'font-mono text-sm' },
     { header: 'Net', key: 'net_salary', render: v => <span className="font-bold text-success-700">{formatCurrency(v)}</span>, cellClassName: 'font-mono text-sm' },
     {
