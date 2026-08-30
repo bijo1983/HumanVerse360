@@ -65,6 +65,12 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
     // its real cumulative method and US FICA cap the SS wage base against
     // actual year-to-date wages instead of a monthly average.
     const empYtd = statutory.ytdBalances?.[row.employee_id];
+    // Per-employee tax profile (tax code, W-4 details, PT state, tax
+    // regime, nationality class...) collected on the employee record —
+    // see TAX_PROFILE_FIELDS in usePayroll.js. Falls back to country-level
+    // defaults inside each calculator when an employee hasn't filled a
+    // field in yet (e.g. a brand new GB tax code defaults to 1257L).
+    const taxProfile = statutory.taxProfiles?.[row.employee_id] || {};
     const res = computeStatutory({
       countryCode: statutory.countryCode,
       nationality: row.nationality,
@@ -73,10 +79,7 @@ function recompute(row, settings, dim, calcFormulas = {}, statutory = null) {
       monthlyTaxable: gross,
       ruleRows: statutory.ruleRows || [],
       taxRules: statutory.taxRules || [],
-      // Employee-specific tax profile fields (tax code, filing status, W-4
-      // details, PT state...) are not yet carried on the payroll row — see
-      // the country field values on the employee record for now. Country-
-      // level defaults apply until Phase 9c wires per-employee overrides in.
+      ...taxProfile,
       monthsElapsed: statutory.monthsElapsed,
       monthsRemaining: statutory.monthsRemaining,
       ytd: empYtd ? {

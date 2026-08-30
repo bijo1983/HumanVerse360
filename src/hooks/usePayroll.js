@@ -2,6 +2,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveTaxYear } from '../lib/taxYear';
+import { useBulkFieldValuesByKey } from './useCustomFields';
+
+// field_key -> the computeStatutory() ctx key it feeds, plus an optional
+// normalizer (the custom_fields "select" options use human labels like
+// "New Regime" where the engine expects a short code like "new").
+const TAX_PROFILE_FIELDS = {
+  nationality_class: { ctxKey: 'nationalityClass' },
+  tax_code: { ctxKey: 'taxCode' },
+  pension_pct: { ctxKey: 'pensionPct', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  student_loan_plan: { ctxKey: 'studentLoanPlan' },
+  pt_state: { ctxKey: 'ptState' },
+  tax_regime: { ctxKey: 'taxRegime', normalize: v => (/old/i.test(v || '') ? 'old' : 'new') },
+  w4_filing_status: { ctxKey: 'filingStatus' },
+  w4_dependents_amount: { ctxKey: 'w4Dependents', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  w4_extra_withholding: { ctxKey: 'w4ExtraWithholding', normalize: v => (v === '' || v == null ? undefined : Number(v)) },
+  state_tax_state: { ctxKey: 'taxState' },
+};
 
 // Posts a batch of YTD deltas via the increment_ytd_balance RPC. Shared by
 // useCreatePayrollRunWithItems (run created already-approved) and
@@ -371,7 +388,12 @@ export function useCountryTaxRules(countryCode) {
 // employee's YTD balances (needed for GB cumulative PAYE, US FICA wage
 // base capping, and India TDS true-up) — omit it for a country/date-
 // agnostic context (e.g. simple monthly-average approximations still apply).
-export function useStatutoryContext(periodEndDate) {
+// employeeIds (optional): when provided, also loads each employee's tax
+// profile fields (national class, tax code, W-4 details, PT state, tax
+// regime...) collected on the employee record — see TAX_PROFILE_FIELDS —
+// and returns them normalized as `taxProfiles[employeeId]`, ready to spread
+// straight into computeStatutory()'s ctx.
+export function useStatutoryContext(periodEndDate, employeeIds = []) {
   const { company } = useAuth();
   const countryCode = company?.country_code || 'BH';
   const { data: ruleRows = [] } = useStatutoryRules(countryCode);
@@ -380,11 +402,25 @@ export function useStatutoryContext(periodEndDate) {
   const taxYearInfo = periodEndDate ? resolveTaxYear(countryCode, periodEndDate) : null;
   const { data: ytdBalances = {} } = useYtdBalances(company?.id, taxYearInfo?.label);
 
+  const { data: rawProfiles = {} } = useBulkFieldValuesByKey(employeeIds, Object.keys(TAX_PROFILE_FIELDS));
+  const taxProfiles = {};
+  for (const [employeeId, fields] of Object.entries(rawProfiles)) {
+    const profile = {};
+    for (const [fieldKey, raw] of Object.entries(fields)) {
+      const spec = TAX_PROFILE_FIELDS[fieldKey];
+      if (!spec) continue;
+      const value = spec.normalize ? spec.normalize(raw) : raw;
+      if (value !== undefined) profile[spec.ctxKey] = value;
+    }
+    taxProfiles[employeeId] = profile;
+  }
+
   return {
     countryCode,
     ruleRows,
     taxRules,
     ytdBalances,
+    taxProfiles,
     taxYear: taxYearInfo?.label,
     monthsElapsed: taxYearInfo?.monthsElapsed,
     monthsRemaining: taxYearInfo?.monthsRemaining,

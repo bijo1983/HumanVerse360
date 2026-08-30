@@ -232,7 +232,7 @@ function PayrollEditorModal({ companyId, month, year, mode, onClose }) {
   const { data: leaveMap = {}, isLoading: leaveLoading } = useApprovedLeaveForMonth(companyId, month, year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
   const periodEnd = new Date(year, month, 0).toISOString().slice(0, 10); // last day of `month`
-  const statutory = useStatutoryContext(periodEnd);
+  const statutory = useStatutoryContext(periodEnd, allEmployees.map(e => e.id));
   const createRun = useCreatePayrollRunWithItems(companyId);
 
   const employees = mode === 'bulk' ? allEmployees : [];
@@ -322,7 +322,7 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { data: leaveMap = {} } = useApprovedLeaveForMonth(companyId, run.month, run.year);
   const { data: calcFormulas = {} } = usePayrollFormulas();
   const periodEnd = new Date(run.year, run.month, 0).toISOString().slice(0, 10);
-  const statutory = useStatutoryContext(periodEnd);
+  const statutory = useStatutoryContext(periodEnd, allEmployees.map(e => e.id));
   const saveDraft = useSaveDraftItems();
   const approveRun = useApprovePayrollRun();
   const { user } = useAuth();
