@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Eye, CheckCircle, ChevronRight, LayoutGrid, User, Save, Printer, X, Trash2, FileSpreadsheet, FileDown, RefreshCw } from 'lucide-react';
 import {
   usePayrollRuns, usePayrollLineItems,
@@ -328,6 +328,19 @@ function PayrollRunModal({ run, companyId, onClose, onViewSlip }) {
   const { user } = useAuth();
 
   const isDraft = run.status === 'Draft';
+
+  // A draft's stored leave_days reflects whatever was approved at the time
+  // the draft was created/last saved — it goes stale the moment a leave
+  // request is approved afterward. Re-sync once, automatically, whenever
+  // this draft is opened with fresh leave data, so reviewing payroll
+  // always reflects the latest approved leave without HR needing to
+  // remember the manual "Sync Leave" button.
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isDraft || autoSyncedRef.current || isLoading) return;
+    gridRef.current?.syncLeave(leaveMap);
+    autoSyncedRef.current = true;
+  }, [isDraft, isLoading, leaveMap]);
 
   const handleSaveDraft = async () => {
     const rows = gridRef.current?.getRows() ?? [];
