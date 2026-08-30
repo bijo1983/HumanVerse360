@@ -135,11 +135,14 @@ CREATE TABLE IF NOT EXISTS country_address_formats (
 );
 
 ALTER TABLE country_address_formats ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS caf_read ON country_address_formats;
 CREATE POLICY caf_read ON country_address_formats FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS caf_company_write ON country_address_formats;
 CREATE POLICY caf_company_write ON country_address_formats FOR ALL TO authenticated
   USING (company_id = get_current_company_id())
   WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS caf_platform_write ON country_address_formats;
 CREATE POLICY caf_platform_write ON country_address_formats FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -232,6 +235,7 @@ CREATE TABLE IF NOT EXISTS employee_addresses (
 CREATE INDEX IF NOT EXISTS idx_employee_addresses_employee ON employee_addresses(employee_id);
 
 ALTER TABLE employee_addresses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ea_all ON employee_addresses;
 CREATE POLICY ea_all ON employee_addresses FOR ALL TO authenticated
   USING (company_id = get_current_company_id())
   WITH CHECK (company_id = get_current_company_id());

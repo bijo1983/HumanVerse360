@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS payroll_ytd_balances (
 CREATE INDEX IF NOT EXISTS idx_ytd_employee_year ON payroll_ytd_balances(employee_id, tax_year);
 
 ALTER TABLE payroll_ytd_balances ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ytd_all ON payroll_ytd_balances;
 CREATE POLICY ytd_all ON payroll_ytd_balances FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
 

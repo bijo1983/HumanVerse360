@@ -25,11 +25,14 @@ CREATE TABLE IF NOT EXISTS country_document_requirements (
 );
 
 ALTER TABLE country_document_requirements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS cdr_read ON country_document_requirements;
 CREATE POLICY cdr_read ON country_document_requirements FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS cdr_company_write ON country_document_requirements;
 CREATE POLICY cdr_company_write ON country_document_requirements FOR ALL TO authenticated
   USING (company_id = get_current_company_id())
   WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS cdr_platform_write ON country_document_requirements;
 CREATE POLICY cdr_platform_write ON country_document_requirements FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 

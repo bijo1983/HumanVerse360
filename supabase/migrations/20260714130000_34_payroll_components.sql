@@ -76,23 +76,29 @@ CREATE INDEX IF NOT EXISTS idx_epa_employee ON employee_payroll_assignments(empl
 
 -- RLS (platform templates readable by all; company rows scoped)
 ALTER TABLE payroll_components ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pc_read ON payroll_components;
 CREATE POLICY pc_read ON payroll_components FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS pc_company_write ON payroll_components;
 CREATE POLICY pc_company_write ON payroll_components FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS pc_platform_write ON payroll_components;
 CREATE POLICY pc_platform_write ON payroll_components FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
 ALTER TABLE payroll_structures ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ps2_all ON payroll_structures;
 CREATE POLICY ps2_all ON payroll_structures FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
 
 ALTER TABLE payroll_structure_components ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS psc_all ON payroll_structure_components;
 CREATE POLICY psc_all ON payroll_structure_components FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM payroll_structures s WHERE s.id = structure_id AND s.company_id = get_current_company_id()))
   WITH CHECK (EXISTS (SELECT 1 FROM payroll_structures s WHERE s.id = structure_id AND s.company_id = get_current_company_id()));
 
 ALTER TABLE employee_payroll_assignments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS epa_all ON employee_payroll_assignments;
 CREATE POLICY epa_all ON employee_payroll_assignments FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
 

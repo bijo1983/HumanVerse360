@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS statutory_modules (
 );
 
 ALTER TABLE statutory_modules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS sm_read ON statutory_modules;
 CREATE POLICY sm_read ON statutory_modules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS sm_admin_write ON statutory_modules;
 CREATE POLICY sm_admin_write ON statutory_modules FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS company_statutory_modules (
   PRIMARY KEY (company_id, module_id)
 );
 ALTER TABLE company_statutory_modules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS csm_all ON company_statutory_modules;
 CREATE POLICY csm_all ON company_statutory_modules FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
 
@@ -49,7 +52,9 @@ CREATE TABLE IF NOT EXISTS country_statutory_rules (
 CREATE INDEX IF NOT EXISTS idx_csr_lookup ON country_statutory_rules(country_code, rule_key, effective_from);
 
 ALTER TABLE country_statutory_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS csr_read ON country_statutory_rules;
 CREATE POLICY csr_read ON country_statutory_rules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS csr_admin_write ON country_statutory_rules;
 CREATE POLICY csr_admin_write ON country_statutory_rules FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -75,7 +80,9 @@ CREATE TABLE IF NOT EXISTS tax_rules (
 );
 
 ALTER TABLE tax_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tr_read ON tax_rules;
 CREATE POLICY tr_read ON tax_rules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS tr_admin_write ON tax_rules;
 CREATE POLICY tr_admin_write ON tax_rules FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -89,7 +96,9 @@ CREATE TABLE IF NOT EXISTS tax_slabs (
   UNIQUE (tax_rule_id, slab_order)
 );
 ALTER TABLE tax_slabs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ts_read ON tax_slabs;
 CREATE POLICY ts_read ON tax_slabs FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS ts_admin_write ON tax_slabs;
 CREATE POLICY ts_admin_write ON tax_slabs FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 

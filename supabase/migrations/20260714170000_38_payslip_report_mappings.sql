@@ -18,10 +18,13 @@ CREATE TABLE IF NOT EXISTS payslip_templates (
 );
 
 ALTER TABLE payslip_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pt_read ON payslip_templates;
 CREATE POLICY pt_read ON payslip_templates FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS pt_company_write ON payslip_templates;
 CREATE POLICY pt_company_write ON payslip_templates FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS pt_platform_write ON payslip_templates;
 CREATE POLICY pt_platform_write ON payslip_templates FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -52,10 +55,13 @@ CREATE TABLE IF NOT EXISTS report_field_mappings (
 );
 
 ALTER TABLE report_field_mappings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS rfm_read ON report_field_mappings;
 CREATE POLICY rfm_read ON report_field_mappings FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS rfm_company_write ON report_field_mappings;
 CREATE POLICY rfm_company_write ON report_field_mappings FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS rfm_platform_write ON report_field_mappings;
 CREATE POLICY rfm_platform_write ON report_field_mappings FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 

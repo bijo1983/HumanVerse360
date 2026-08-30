@@ -36,10 +36,13 @@ CREATE TABLE IF NOT EXISTS eosb_rules (
 );
 
 ALTER TABLE eosb_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS er_read ON eosb_rules;
 CREATE POLICY er_read ON eosb_rules FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS er_company_write ON eosb_rules;
 CREATE POLICY er_company_write ON eosb_rules FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS er_platform_write ON eosb_rules;
 CREATE POLICY er_platform_write ON eosb_rules FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -120,10 +123,13 @@ CREATE TABLE IF NOT EXISTS leave_policy_templates (
 );
 
 ALTER TABLE leave_policy_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS lpt_read ON leave_policy_templates;
 CREATE POLICY lpt_read ON leave_policy_templates FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS lpt_company_write ON leave_policy_templates;
 CREATE POLICY lpt_company_write ON leave_policy_templates FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS lpt_platform_write ON leave_policy_templates;
 CREATE POLICY lpt_platform_write ON leave_policy_templates FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -184,10 +190,13 @@ CREATE TABLE IF NOT EXISTS holiday_calendars (
 CREATE INDEX IF NOT EXISTS idx_holidays_lookup ON holiday_calendars(country_code, year, jurisdiction);
 
 ALTER TABLE holiday_calendars ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS hc_read ON holiday_calendars;
 CREATE POLICY hc_read ON holiday_calendars FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS hc_company_write ON holiday_calendars;
 CREATE POLICY hc_company_write ON holiday_calendars FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS hc_platform_write ON holiday_calendars;
 CREATE POLICY hc_platform_write ON holiday_calendars FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -266,10 +275,13 @@ CREATE TABLE IF NOT EXISTS overtime_rules (
 );
 
 ALTER TABLE overtime_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS otr_read ON overtime_rules;
 CREATE POLICY otr_read ON overtime_rules FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS otr_company_write ON overtime_rules;
 CREATE POLICY otr_company_write ON overtime_rules FOR ALL TO authenticated
   USING (company_id = get_current_company_id()) WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS otr_platform_write ON overtime_rules;
 CREATE POLICY otr_platform_write ON overtime_rules FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 

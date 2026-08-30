@@ -28,11 +28,14 @@ CREATE INDEX IF NOT EXISTS idx_fv_component ON formula_versions(component_id, ap
 CREATE INDEX IF NOT EXISTS idx_fv_setting ON formula_versions(setting_code, approval_status, effective_from);
 
 ALTER TABLE formula_versions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS fv_read ON formula_versions;
 CREATE POLICY fv_read ON formula_versions FOR SELECT TO authenticated
   USING (company_id IS NULL OR company_id = get_current_company_id());
+DROP POLICY IF EXISTS fv_company_write ON formula_versions;
 CREATE POLICY fv_company_write ON formula_versions FOR ALL TO authenticated
   USING (company_id = get_current_company_id())
   WITH CHECK (company_id = get_current_company_id());
+DROP POLICY IF EXISTS fv_platform_write ON formula_versions;
 CREATE POLICY fv_platform_write ON formula_versions FOR ALL TO authenticated
   USING (is_platform_admin()) WITH CHECK (is_platform_admin());
 
@@ -122,8 +125,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_entity ON payroll_audit_logs(entity_type, e
 CREATE INDEX IF NOT EXISTS idx_audit_company_time ON payroll_audit_logs(company_id, created_at);
 
 ALTER TABLE payroll_audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pal_read ON payroll_audit_logs;
 CREATE POLICY pal_read ON payroll_audit_logs FOR SELECT TO authenticated
   USING (company_id = get_current_company_id() OR is_platform_admin());
+DROP POLICY IF EXISTS pal_insert ON payroll_audit_logs;
 CREATE POLICY pal_insert ON payroll_audit_logs FOR INSERT TO authenticated
   WITH CHECK (company_id = get_current_company_id() OR is_platform_admin());
 
