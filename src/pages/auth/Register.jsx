@@ -7,6 +7,7 @@ import { Shield, Check, ChevronRight, ChevronLeft, AlertCircle, Star, Users, Bui
 import { FormField, Input, Select } from '../../components/ui/Form';
 import { useForm } from 'react-hook-form';
 import { useCountries } from '../../hooks/useCountryConfig';
+import { PLANS as STATIC_PLANS } from '../../lib/plans';
 
 const PLAN_COLORS = {
   free: { bg: 'bg-secondary-50', border: 'border-secondary-200', badge: 'bg-secondary-100 text-secondary-600', btn: 'btn-secondary' },
@@ -14,6 +15,18 @@ const PLAN_COLORS = {
   medium: { bg: 'bg-primary-50', border: 'border-primary-300', badge: 'bg-primary-600 text-white', btn: 'btn-primary' },
   large: { bg: 'bg-secondary-900', border: 'border-secondary-700', badge: 'bg-accent-500 text-white', btn: 'btn-primary' },
 };
+
+const STATIC_PLAN_LIST = Object.values(STATIC_PLANS).map(p => ({
+  id: p.code,
+  code: p.code,
+  name: p.name,
+  price_bhd: p.price,
+  max_employees: p.maxEmployees === Infinity ? null : p.maxEmployees,
+  is_active: true,
+  is_popular: p.code === 'medium',
+  sort_order: { free: 1, small: 2, medium: 3, large: 4 }[p.code] || 99,
+  features: p.modules,
+}));
 
 function usePlans() {
   return useQuery({
@@ -27,6 +40,7 @@ function usePlans() {
       if (error) throw error;
       return data;
     },
+    placeholderData: STATIC_PLAN_LIST,
   });
 }
 
@@ -55,7 +69,7 @@ async function callEdgeFunction(slug, body) {
 export default function Register() {
   const navigate = useNavigate();
   const { registerCompany } = useAuth();
-  const { data: plans = [] } = usePlans();
+  const { data: plans = [], isLoading: plansLoading, isError: plansError } = usePlans();
   const { countries } = useCountries();
   const [step, setStep] = useState(0);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -210,6 +224,19 @@ export default function Register() {
         {step === 0 && (
           <div>
             <h2 className="text-center text-white text-lg font-semibold mb-6">Choose your plan</h2>
+            {plansLoading && (
+              <div className="flex flex-col items-center gap-3 py-16">
+                <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-secondary-400 text-sm">Loading plans...</p>
+              </div>
+            )}
+            {plansError && !plansLoading && plans.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-secondary-400 text-sm mb-4">We couldn't load the subscription plans right now.</p>
+                <p className="text-secondary-500 text-xs">Please check your connection and try again.</p>
+              </div>
+            )}
+            {plans.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {plans.map(plan => {
                 const c = PLAN_COLORS[plan.code] || PLAN_COLORS.free;
@@ -259,6 +286,7 @@ export default function Register() {
                 );
               })}
             </div>
+            )}
             <p className="text-center text-secondary-500 text-sm mt-6">
               Already registered?{' '}
               <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium">Sign in here</Link>
